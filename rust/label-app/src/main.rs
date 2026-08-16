@@ -41,12 +41,14 @@ fn app_url() -> String {
 }
 
 fn server_alive() -> bool {
-    ureq::AgentBuilder::new()
-        .timeout(Duration::from_secs(1))
-        .build()
-        .get(&format!("http://127.0.0.1:{PORT}/api/meta"))
-        .call()
-        .is_ok()
+    ureq::Agent::new_with_config(
+        ureq::Agent::config_builder()
+            .timeout_global(Some(Duration::from_secs(1)))
+            .build(),
+    )
+    .get(format!("http://127.0.0.1:{PORT}/api/meta"))
+    .call()
+    .is_ok()
 }
 
 fn alert(message: &str) {
