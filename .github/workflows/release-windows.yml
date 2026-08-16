@@ -2,20 +2,42 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Windows release pipeline: tag vX.Y.Z -> build workspace -> MSI ->
-# (optionally sign via SignPath) -> Burn bundle -> GitHub Release ->
-# winget-pkgs update PR.
+# (optionally sign via Azure Artifact Signing) -> Burn bundle ->
+# GitHub Release -> winget-pkgs update PR.
 #
-# Signing is OFF until SignPath onboarding is done (see
-# windows/INSTALLER-PLAN.md). To turn it on, define in the repo:
-#   secrets.SIGNPATH_API_TOKEN       (SignPath CI user token)
-#   vars.SIGNPATH_ORGANIZATION_ID    (from the SignPath dashboard)
-# and make project-slug / signing-policy-slug below match the SignPath
-# project. While unset, the workflow ships unsigned artifacts.
-# Check SignPath's action docs when onboarding — input names here
-# (github-artifact-id etc.) follow v2.3 and may drift. Note that
-# actionlint does NOT validate third-party action inputs (verified: it
-# ignores an invented input on this action), so a rename will surface
-# only at signing time.
+# Signing is OFF until the Azure resources exist (see
+# windows/INSTALLER-PLAN.md). To turn it on, define these VARIABLES on
+# the repo or the `release` environment:
+#   vars.AZURE_SIGNING_ENDPOINT  region URI, e.g.
+#                                https://wus2.codesigning.azure.net
+#   vars.AZURE_SIGNING_ACCOUNT   Artifact Signing account name
+#   vars.AZURE_SIGNING_PROFILE   certificate profile name
+# plus these `release`-environment SECRETS, consumed by azure/login:
+#   secrets.AZURE_CLIENT_ID / AZURE_TENANT_ID / AZURE_SUBSCRIPTION_ID
+# While AZURE_SIGNING_ACCOUNT is unset every signing step skips and
+# the workflow ships unsigned artifacts, exactly as before.
+#
+# Auth is OIDC, so no long-lived credential is stored. That needs
+# `id-token: write` below AND a federated identity credential in Entra
+# whose subject matches this job exactly:
+#   repo:curtisgalloway@4055365/oh-brother@1335543057:environment:release
+# A subject mismatch fails the token exchange with no error message on
+# either side. Confirm the real subject with oidc-probe.yml before
+# tagging a release rather than assuming the format.
+#
+# `environment: release` is what puts `:environment:` in that subject.
+# It also means every Windows release now waits for the environment's
+# required-reviewer approval before it builds — the approval gate sits
+# in front of the whole job, not just the signing steps, because
+# signing is interleaved with the build and can't be split out without
+# reintroducing artifact round-trips.
+#
+# Signing happens in place on the runner (three signtool calls), which
+# is why the old upload-artifact / download / swap-in dance is gone.
+# Note that actionlint does NOT validate third-party action inputs
+# (verified: it ignores an invented input on this action), so a rename
+# surfaces only at signing time. The inputs below were read from
+# artifact-signing-action v2.0.0's action.yml, not from its README.
 #
 # winget publishing similarly waits on secrets.WINGET_TOKEN (a classic
 # PAT with public_repo scope; winget-releaser uses it to fork/PR
@@ -31,10 +53,12 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   build:
     runs-on: windows-latest
+    environment: release
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -60,119 +84,126 @@ jobs:
       - name: Build MSI
         run: windows\build.ps1 msi -NoCargo
 
-      # ---- MSI signing (steps skipped until SignPath is configured) ----
-      - name: Upload unsigned MSI for signing
-        id: unsigned-msi
-        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: unsigned-msi
-          path: windows/build/*.msi
-
-      - name: Sign MSI (SignPath)
-        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
-        uses: signpath/github-action-submit-signing-request@c92b958760219087e01f8d67a1669ed57afe2627 # v2.3
-        with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: oh-brother
-          signing-policy-slug: release-signing
-          github-artifact-id: ${{ steps.unsigned-msi.outputs.artifact-id }}
-          wait-for-completion: true
-          output-artifact-directory: signed/msi
-
-      - name: Swap in signed MSI
-        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
-        shell: pwsh
-        run: Copy-Item signed/msi/*.msi windows/build/ -Force
-
-      # Build the bundle around whichever MSI is now in windows\build
-      # (signed if the steps above ran, unsigned otherwise). Invokes
-      # wix directly rather than build.ps1 bundle because build.ps1
-      # wipes build\, which would discard the signed MSI.
-      - name: Build Burn bundle
+      # The signing action's `files` input wants absolute paths and the
+      # MSI name carries the version, so resolve both once here and
+      # reuse them rather than re-globbing in every later step.
+      - name: Locate MSI
+        id: msi
         shell: pwsh
         run: |
           $msi = Get-ChildItem windows/build/*.msi | Select-Object -First 1
           $ver = $msi.BaseName -replace '^OhBrother-','' -replace '-x64$',''
+          "path=$($msi.FullName)" >> $env:GITHUB_OUTPUT
+          "version=$ver" >> $env:GITHUB_OUTPUT
+
+      # ---- Signing (every step skips until the Azure vars are set) ----
+      - name: Azure login (OIDC)
+        if: ${{ vars.AZURE_SIGNING_ACCOUNT != '' }}
+        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # timestamp-rfc3161 has a default in v2.0.0, but it is set
+      # explicitly here on purpose: Artifact Signing certificates live
+      # 72 hours, so an untimestamped signature verifies on release day
+      # and goes invalid three days later. That must not depend on a
+      # third-party action's default staying put.
+      - name: Sign MSI
+        if: ${{ vars.AZURE_SIGNING_ACCOUNT != '' }}
+        uses: Azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
+        with:
+          endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.AZURE_SIGNING_PROFILE }}
+          files: ${{ steps.msi.outputs.path }}
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      # Build the bundle around whichever MSI is now in windows\build
+      # (signed if the step above ran, unsigned otherwise). Invokes wix
+      # directly rather than build.ps1 bundle because build.ps1 wipes
+      # build\, which would discard the signed MSI.
+      - name: Build Burn bundle
+        shell: pwsh
+        env:
+          MSI_PATH: ${{ steps.msi.outputs.path }}
+          MSI_VERSION: ${{ steps.msi.outputs.version }}
+        run: |
           wix extension add --global WixToolset.Util.wixext/7.0.0
           wix extension add --global WixToolset.BootstrapperApplications.wixext/7.0.0
           Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile windows/build/MicrosoftEdgeWebView2Setup.exe
           wix build -arch x64 `
             -ext WixToolset.Util.wixext/7.0.0 -ext WixToolset.BootstrapperApplications.wixext/7.0.0 `
-            -d "Version=$ver" -d "Msi=$($msi.FullName)" `
+            -d "Version=$($env:MSI_VERSION)" -d "Msi=$($env:MSI_PATH)" `
             -d "WindowsDir=$PWD\windows" `
             -d "WebView2Bootstrapper=$PWD\windows\build\MicrosoftEdgeWebView2Setup.exe" `
-            windows/installer/Bundle.wxs -o "windows/build/OhBrother-$ver-x64-setup.exe"
+            windows/installer/Bundle.wxs -o "windows/build/OhBrother-$($env:MSI_VERSION)-x64-setup.exe"
 
       # ---- Bundle signing: Burn engine first, then the bundle ----
-      # (three SignPath round-trips total per release: msi, engine, bundle)
+      # Burn hides its engine inside the bundle, so the engine has to be
+      # detached, signed, and reattached before the finished bundle is
+      # signed. Three signtool calls per release, all in place.
+      #
+      # The globs deliberately stay narrow: windows\build also holds
+      # MicrosoftEdgeWebView2Setup.exe, which is Microsoft's binary and
+      # must never be re-signed with this certificate. It has no hyphen
+      # before "Setup", so *-setup.exe does not match it.
       - name: Detach Burn engine
         id: detach
-        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        if: ${{ vars.AZURE_SIGNING_ACCOUNT != '' }}
         shell: pwsh
         run: |
           $bundle = Get-ChildItem windows/build/*-setup.exe | Select-Object -First 1
           wix burn detach $bundle.FullName -engine windows/build/engine.exe
           "bundle=$($bundle.FullName)" >> $env:GITHUB_OUTPUT
+          "engine=$((Get-Item windows/build/engine.exe).FullName)" >> $env:GITHUB_OUTPUT
 
-      - name: Upload unsigned engine
-        id: unsigned-engine
-        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - name: Sign Burn engine
+        if: ${{ vars.AZURE_SIGNING_ACCOUNT != '' }}
+        uses: Azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
         with:
-          name: unsigned-engine
-          path: windows/build/engine.exe
-
-      - name: Sign Burn engine (SignPath)
-        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
-        uses: signpath/github-action-submit-signing-request@c92b958760219087e01f8d67a1669ed57afe2627 # v2.3
-        with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: oh-brother
-          signing-policy-slug: release-signing
-          github-artifact-id: ${{ steps.unsigned-engine.outputs.artifact-id }}
-          wait-for-completion: true
-          output-artifact-directory: signed/engine
+          endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.AZURE_SIGNING_PROFILE }}
+          files: ${{ steps.detach.outputs.engine }}
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
 
       - name: Reattach signed engine
-        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        if: ${{ vars.AZURE_SIGNING_ACCOUNT != '' }}
         shell: pwsh
-        run: wix burn reattach "${{ steps.detach.outputs.bundle }}" -engine signed/engine/engine.exe
+        env:
+          BUNDLE: ${{ steps.detach.outputs.bundle }}
+          ENGINE: ${{ steps.detach.outputs.engine }}
+        run: wix burn reattach "$($env:BUNDLE)" -engine "$($env:ENGINE)"
 
-      - name: Upload unsigned bundle
-        id: unsigned-bundle
-        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - name: Sign bundle
+        if: ${{ vars.AZURE_SIGNING_ACCOUNT != '' }}
+        uses: Azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
         with:
-          name: unsigned-bundle
-          path: windows/build/*-setup.exe
+          endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.AZURE_SIGNING_PROFILE }}
+          files: ${{ steps.detach.outputs.bundle }}
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
 
-      - name: Sign bundle (SignPath)
-        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
-        uses: signpath/github-action-submit-signing-request@c92b958760219087e01f8d67a1669ed57afe2627 # v2.3
-        with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: oh-brother
-          signing-policy-slug: release-signing
-          github-artifact-id: ${{ steps.unsigned-bundle.outputs.artifact-id }}
-          wait-for-completion: true
-          output-artifact-directory: signed/bundle
-
-      - name: Swap in signed bundle
-        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
-        shell: pwsh
-        run: Copy-Item signed/bundle/*-setup.exe windows/build/ -Force
-
-      # Confirm the signing round-trips actually landed, rather than
-      # trusting that they did. The macOS release shipped ad-hoc signed
-      # precisely because nothing inspected the finished artifact; a
-      # swap step here that quietly copies nothing would do the same.
-      # Dormant until SignPath is configured, same gate as the rest.
-      - name: Verify artifacts are Authenticode signed
-        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+      # Confirm the signing actually landed, rather than trusting that
+      # it did. The macOS release shipped ad-hoc signed precisely
+      # because nothing inspected the finished artifact.
+      #
+      # The timestamp assertion is not decoration. Signing certificates
+      # here are valid for 72 hours, so a signature without an RFC3161
+      # countersignature passes Get-AuthenticodeSignature on release day
+      # and every installer in the wild goes invalid three days later —
+      # a failure nobody would notice until users report it.
+      - name: Verify artifacts are signed and timestamped
+        if: ${{ vars.AZURE_SIGNING_ACCOUNT != '' }}
         shell: pwsh
         run: |
           $failed = $false
@@ -182,6 +213,12 @@ jobs:
             if ($sig.Status -ne 'Valid') {
               Write-Host "::error::$($_.Name) is not validly signed (status: $($sig.Status))"
               $failed = $true
+            }
+            if (-not $sig.TimeStamperCertificate) {
+              Write-Host "::error::$($_.Name) has no RFC3161 timestamp; its signature dies with the 72-hour certificate"
+              $failed = $true
+            } else {
+              Write-Host "  timestamped by: $($sig.TimeStamperCertificate.Subject)"
             }
           }
           if ($failed) { exit 1 }

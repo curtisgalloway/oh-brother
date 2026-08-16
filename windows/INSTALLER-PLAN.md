@@ -87,33 +87,60 @@ An in-app "check for updates" (hit the GitHub releases API, offer the new
 bundle) would be a nice third leg someday, but winget + MajorUpgrade already
 delivers the "easily update" goal without writing updater code.
 
-## Code signing: SignPath Foundation
+## Code signing: Azure Artifact Signing
 
 Unsigned installers work but greet every downloader with a SmartScreen
 "unrecognized app" wall — the single biggest friction for the "easy for
-others to install" goal. The decision (made in-session): apply to SignPath
-Foundation's free OSS signing program rather than pay for a certificate.
+others to install" goal.
 
-What was verified about the program: it's free for open-source projects
-meeting their conditions — OSI license without commercial dual-licensing, no
-proprietary components, active maintenance, binaries produced by an
-automated CI build from the public repo, MFA for the team, and a published
-code-signing policy with named author/reviewer/approver roles (a solo
-maintainer can hold multiple roles). The certificate names **SignPath
-Foundation** as publisher, not Curtis — that's the trade for free. The
-for-pay alternative if that ever chafes: Azure Artifact Signing (the renamed
-Trusted Signing), now GA at $9.99/month and open to self-employed
-individuals in the US with identity verification — cert in your own name
-and near-instant SmartScreen reputation.
+The original decision was SignPath Foundation's free OSS program.
+**Superseded 2026-08-16:** SignPath's onboarding gates on the project being
+"widely used or trusted," which a just-published project cannot satisfy.
+Switched to **Azure Artifact Signing** (the renamed Trusted Signing), ~$9.99
+/month, which makes no popularity judgment. Individual developers are
+eligible in the US and Canada; identity validation is a live AU10TIX ID scan
+(government photo ID plus a recent utility bill or bank statement) that
+completes in minutes, not the 1–20 business days quoted for organizations.
+The certificate names Curtis, not SignPath Foundation — the upside of the
+switch. Name and city/state/country appear in every installer's signature;
+street address and postal code are opt-in checkboxes, left unchecked.
+
+The certificates are valid for **72 hours** and renew daily, so RFC 3161
+timestamp countersigning is load-bearing rather than best practice: a
+signature without one verifies on release day and goes invalid three days
+later. Timestamping is what makes already-shipped installers survive both
+certificate expiry and any future decision to stop paying — cancelling stops
+new signing, it does not invalidate what already shipped. The workflow sets
+`timestamp-rfc3161` explicitly even though v2.0.0 defaults it, and the verify
+step asserts `TimeStamperCertificate` is present rather than trusting it.
+
+EV certificates were considered and rejected: since 2024 they no longer
+bypass SmartScreen, so the $400+/year buys nothing over the $120/year
+service. Reputation accrues per file hash either way.
 
 Signing a Burn bundle is a three-signature dance, and the workflow encodes
 it: sign the MSI; build the bundle around the signed MSI; `wix burn detach`
 the Burn engine and sign it; `wix burn reattach`; sign the finished bundle.
-With SignPath that's three signing-request round-trips per release, all
-automated once onboarded. Until onboarding completes, every signing step in
-the workflow is gated on `vars.SIGNPATH_ORGANIZATION_ID` and simply skips —
-releases ship unsigned but everything else works, so nothing blocks on the
-SignPath application.
+Unlike SignPath's submit-and-download model, Azure signs in place on the
+runner, so the upload-artifact/download/swap-in round-trips are gone — three
+signtool calls. Until the Azure resources exist, every signing step is gated
+on `vars.AZURE_SIGNING_ACCOUNT` and simply skips, so releases ship unsigned
+but everything else works.
+
+Auth is OIDC via a federated identity credential — no long-lived secret in
+the repo. Two traps worth recording. First, Entra federated credentials
+**do not support wildcards**, so a `refs/tags/*` subject is impossible and
+the tag-triggered workflow has to authenticate through a GitHub
+**environment** (`release`) whose name is a fixed string. That is why the
+build job carries `environment: release`, and why every Windows release now
+waits on that environment's required-reviewer approval. Second, a subject
+mismatch fails the token exchange **with no error on either side** — hence
+`oidc-probe.yml`, which prints the real `sub` claim instead of inferring it.
+That matters here because GitHub's immutable-subject rollout is ambiguous
+for this repo: it was created after the 2026-07-15 cutoff and
+`sub_claim_prefix` already reads
+`repo:curtisgalloway@4055365/oh-brother@1335543057`, yet
+`use_immutable_subject` still reports `false`.
 
 ## What's in this change
 
@@ -133,10 +160,12 @@ permanent constants — never change `8B1FB345-683B-4651-98F8-F7A3DD8E509E`
 Caveats in the same spirit as TESTING.md: none of this has executed on a
 real Windows machine. The `.wxs` files are well-formed XML and were authored
 against the v4-schema documentation, but `wix build` has not run over them
-(this session's sandbox can't reach NuGet to install the WiX CLI), and the
-SignPath action's input names were written from its v1.2 docs without a live
-run. Expect a first-run fix-forward pass, same as the rest of the Windows
-port.
+(this session's sandbox can't reach NuGet to install the WiX CLI). The
+signing action's inputs were read from `artifact-signing-action` v2.0.0's
+own `action.yml` rather than its README (which omits the `timestamp-rfc3161`
+default), but no signing run has happened yet. actionlint does not validate
+third-party action inputs, so a rename would surface only at signing time.
+Expect a first-run fix-forward pass, same as the rest of the Windows port.
 
 ## One-time setup remaining (in order, none blocking the next)
 
@@ -158,10 +187,16 @@ port.
    WIX7015; a macOS DMG workflow landed alongside it). Remaining: tag
    `v0.1.0` and let both workflows produce an unsigned release
    end-to-end.
-3. Apply at signpath.org: publish a short code-signing policy page in the
-   repo, enable MFA, reference the release workflow. On approval, set
-   `SIGNPATH_API_TOKEN` (secret) + `SIGNPATH_ORGANIZATION_ID` (variable) and
-   align the project/policy slugs in the workflow.
+3. Azure Artifact Signing. Done so far: the `release` environment with a
+   required-reviewer rule, `AZURE_CLIENT_ID` / `AZURE_TENANT_ID` /
+   `AZURE_SUBSCRIPTION_ID` as environment secrets, and the Entra app
+   registration with its federated credential. Remaining, in order:
+   run `oidc-probe.yml` and confirm the printed `sub` matches the
+   federated credential exactly; confirm the app holds **Artifact Signing
+   Certificate Profile Signer** scoped to the certificate profile; then set
+   the three variables that arm the workflow — `AZURE_SIGNING_ENDPOINT`
+   (region URI), `AZURE_SIGNING_ACCOUNT`, `AZURE_SIGNING_PROFILE`. Until
+   `AZURE_SIGNING_ACCOUNT` is set, releases still ship unsigned.
 4. Submit the first winget manifest by hand with wingetcreate
    (`Scope: user`), then set `WINGET_TOKEN` (classic PAT, public_repo) so
    the action takes over from the second release on.
@@ -172,7 +207,10 @@ port.
 - [Open Source Maintenance Fee (wixtoolset issue #8974)](https://github.com/wixtoolset/issues/issues/8974)
 - [WiX Package/@Scope perUser and INSTALLFOLDER (issue #8101)](https://github.com/wixtoolset/issues/issues/8101)
 - [Signing packages and bundles (FireGiant docs)](https://docs.firegiant.com/wix/tools/signing/)
-- [SignPath Foundation conditions](https://signpath.org/terms.html) and [SignPath OSS program](https://signpath.io/solutions/open-source-community)
-- [Azure Artifact Signing for individuals (Melatonin write-up)](https://melatonin.dev/blog/code-signing-on-windows-with-azure-trusted-signing/), [pricing/GA coverage (DevClass)](https://www.devclass.com/security/2026/01/14/code-signing-windows-apps-may-be-easier-and-more-secure-with-new-azure-artifact-service/4079554)
+- [SignPath Foundation conditions](https://signpath.org/terms.html) and [SignPath OSS program](https://signpath.io/solutions/open-source-community) (rejected — "widely used or trusted" gate)
+- [Artifact Signing quickstart](https://learn.microsoft.com/en-us/azure/artifact-signing/quickstart), [certificate management / 72-hour certs](https://learn.microsoft.com/en-us/azure/artifact-signing/concept-certificate-management), [RBAC roles](https://learn.microsoft.com/en-us/azure/artifact-signing/tutorial-assign-roles)
+- [Azure/artifact-signing-action](https://github.com/Azure/artifact-signing-action) (renamed from trusted-signing-action), [azure/login](https://github.com/azure/login)
+- [Federated credentials: no wildcards, use an environment](https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-create-trust), [GitHub immutable subjects](https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-github-immutable-subjects)
+- [Windows code signing options / EV no longer bypasses SmartScreen](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/code-signing-options)
 - [winget-releaser action](https://github.com/vedantmgoyal9/winget-releaser), [komac](https://github.com/russellbanks/Komac), [winget per-user MSI scope quirk (winget-cli #3011)](https://github.com/microsoft/winget-cli/issues/3011)
 - [WebView2 distribution / Evergreen Bootstrapper link](https://go.microsoft.com/fwlink/p/?LinkId=2124703)

@@ -83,7 +83,7 @@ fetches the full font set + licenses into `OUTDIR/fonts/`.
   installer: WiX v7 authoring for a per-user MSI (`Package.wxs`) and a
   Burn bundle that chains the WebView2 runtime (`Bundle.wxs`), built by
   `windows\build.ps1 msi|bundle`; INSTALLER-PLAN.md is the research and
-  decision record (format choice, SignPath signing, winget updates) and
+  decision record (format choice, Azure Artifact Signing, winget updates) and
   ends with the one-time setup checklist. The release pipelines live at
   `.github/workflows/release-windows.yml` (MSI + bundle + winget; needs
   the WiX v7 OSMF EULA acceptance — `wix eula accept wix7`, error
@@ -92,7 +92,6 @@ fetches the full font set + licenses into `OUTDIR/fonts/`.
   notarization secrets exist — downloaders right-click-Open past
   Gatekeeper). The UpgradeCode GUIDs in both .wxs files are permanent
   identity — never regenerate them.
->>>>>>> installer-wip
 - `macos/AppIcon.icns` + `windows/AppIcon.ico` — the app icon,
   committed as built artifacts (the Pillow generator that drew them
   was retired with the Python side; regenerate from git history's
