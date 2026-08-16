@@ -1785,7 +1785,7 @@ dependencies = [
 
 [[package]]
 name = "label-app"
-version = "0.1.1"
+version = "0.1.0"
 dependencies = [
  "muda",
  "rfd",
@@ -1799,7 +1799,7 @@ dependencies = [
 
 [[package]]
 name = "label-cli"
-version = "0.1.1"
+version = "0.1.0"
 dependencies = [
  "clap",
  "image",
@@ -1810,7 +1810,7 @@ dependencies = [
 
 [[package]]
 name = "label-render"
-version = "0.1.1"
+version = "0.1.0"
 dependencies = [
  "ab_glyph",
  "dirs",
@@ -1827,7 +1827,7 @@ dependencies = [
 
 [[package]]
 name = "label-server"
-version = "0.1.1"
+version = "0.1.0"
 dependencies = [
  "axum",
  "base64 0.23.1",
@@ -2707,7 +2707,7 @@ dependencies = [
 
 [[package]]
 name = "pt-protocol"
-version = "0.1.1"
+version = "0.1.0"
 dependencies = [
  "rusb",
 ]
