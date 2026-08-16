@@ -79,13 +79,38 @@ jobs:
       - name: labelcore tests
         run: node tests/labelcore_test.js
 
-  # The release pipeline lives in these scripts; a syntax error in one
-  # only shows up at tag time, when it is most expensive.
+  # The release pipeline lives in these scripts and workflows; a mistake
+  # in one only shows up at tag time, when it is most expensive.
   scripts:
     runs-on: ubuntu-latest
+    env:
+      # Pinned rather than floating, and checksummed rather than trusted:
+      # this job exists to validate the release pipeline, so it should
+      # not itself be a way to inject something into it.
+      ACTIONLINT_VERSION: 1.7.12
+      ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
     steps:
       - uses: actions/checkout@v7
+
       - name: Install shellcheck
         run: sudo apt-get update && sudo apt-get install -y shellcheck
+
       - name: shellcheck
         run: shellcheck -s sh macos/build.sh macos/notarize.sh
+
+      # Catches what the Rust jobs structurally cannot: a workflow whose
+      # YAML parses but whose expressions, contexts or action inputs are
+      # wrong. Two such bugs have already bitten this project — `secrets`
+      # used in a step `if:` (a parse error invalidating the whole file),
+      # and actions left on a retired runner version. A pending upgrade
+      # of the SignPath action across a major version is exactly the
+      # shape of change this is meant to check.
+      - name: Install actionlint
+        run: |
+          curl -sSLo actionlint.tar.gz \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          echo "${ACTIONLINT_SHA256}  actionlint.tar.gz" | sha256sum --check --strict
+          tar -xzf actionlint.tar.gz actionlint
+
+      - name: actionlint
+        run: ./actionlint -color
