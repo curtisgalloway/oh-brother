@@ -419,17 +419,26 @@ fn download(url: &str) -> Result<Vec<u8>, FontUnavailable> {
     }
     static AGENT: OnceLock<ureq::Agent> = OnceLock::new();
     let agent = AGENT.get_or_init(|| {
-        ureq::AgentBuilder::new()
-            .timeout(TIMEOUT)
-            .user_agent(USER_AGENT)
-            .build()
+        ureq::Agent::new_with_config(
+            ureq::Agent::config_builder()
+                // ureq 3 renamed the whole-request deadline; timeout_global
+                // is the equivalent of ureq 2's Agent-level timeout().
+                .timeout_global(Some(TIMEOUT))
+                .user_agent(USER_AGENT)
+                .build(),
+        )
     });
     let response = agent
         .get(url)
         .call()
         .map_err(|e| FontUnavailable(format!("cannot fetch {url}: {e}")))?;
     let mut data = Vec::new();
+    // ureq 3 splits the body off the response. into_reader() is itself
+    // unbounded (limit u64::MAX), so MAX_DOWNLOAD below remains the only
+    // cap, exactly as before — the 10MB default documented for ureq 3
+    // applies to read_to_string/read_to_vec, which this does not use.
     response
+        .into_body()
         .into_reader()
         .take(MAX_DOWNLOAD)
         .read_to_end(&mut data)
