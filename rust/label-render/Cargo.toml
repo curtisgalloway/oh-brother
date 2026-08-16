@@ -19,4 +19,4 @@ skera = "0.6"
 ttf-parser = "0.25"
 ureq = "2"
 write-fonts = { version = "0.52", features = ["read"] }
-zip = { version = "2", default-features = false, features = ["deflate"] }
+zip = { version = "8", default-features = false, features = ["deflate"] }
