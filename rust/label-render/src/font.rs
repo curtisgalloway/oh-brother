@@ -162,7 +162,12 @@ impl LoadedFont {
 
 #[cfg(test)]
 mod tests {
-    use super::{load, path_and_index};
+    use super::path_and_index;
+    // Only the macOS-gated test below uses this; importing it
+    // unconditionally is an unused import everywhere else, which -D
+    // warnings turns into a build failure.
+    #[cfg(target_os = "macos")]
+    use super::load;
 
     #[test]
     fn face_index_suffix_must_be_numeric() {
