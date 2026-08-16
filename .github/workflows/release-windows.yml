@@ -192,7 +192,11 @@ jobs:
           files: |
             windows/build/*.msi
             windows/build/*-setup.exe
-          generate_release_notes: true
+          # Deliberately NOT generate_release_notes. Both release
+          # workflows run on the same tag and whichever finishes second
+          # appends a second copy — v0.1.0 shipped with "What's Changed"
+          # twice. release-macos.yml owns the notes; this job only
+          # attaches its artifacts.
 
   winget:
     needs: build

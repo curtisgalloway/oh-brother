@@ -165,4 +165,13 @@ jobs:
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3
         with:
           files: macos/build/*.dmg
+          # This job owns the release notes; release-windows.yml only
+          # attaches artifacts, so they are not generated twice.
+          #
+          # These notes are the auto-generated PR changelog, and they
+          # replace the tag's annotation rather than appending to it —
+          # so a hand-written message on the tag will NOT appear here.
+          # For notes that matter to downloaders (e.g. the SmartScreen
+          # warning on the unsigned Windows installers), edit the release
+          # after the run: gh release edit vX.Y.Z --notes-file notes.md
           generate_release_notes: true
