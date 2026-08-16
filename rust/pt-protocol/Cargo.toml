@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: 2026 Curtis Galloway
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "pt-protocol"
+description = "Brother P-touch raster protocol over USB and Bluetooth"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+# Vendored: libusb is compiled in statically, so shipped binaries have
+# no Homebrew/system dependency.
+rusb = { version = "0.9", features = ["vendored"] }

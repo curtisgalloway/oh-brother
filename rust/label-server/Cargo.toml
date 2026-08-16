@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: 2026 Curtis Galloway
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "label-server"
+description = "Label web UI server (phase-2 Rust port of label-web)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "label-web"
+path = "src/main.rs"
+
+[dependencies]
+pt-protocol = { path = "../pt-protocol" }
+label-render = { path = "../label-render" }
+axum = "0.8"
+tokio = { version = "1", features = ["rt-multi-thread", "net", "sync"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+image = "0.25"
+clap = { version = "4", features = ["derive"] }
+webbrowser = "1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt"] }
+tower = { version = "0.5", features = ["util"] }

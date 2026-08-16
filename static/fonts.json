@@ -1,0 +1,1807 @@
+{
+  "pins": {
+    "google_fonts": {
+      "repo": "google/fonts",
+      "commit": "7ff85c87f93ea6cca5f41c69f2e4edcb90240f26"
+    },
+    "material_icons": {
+      "repo": "google/material-design-icons",
+      "commit": "528cb964c01fb2b09bc3b9208f82b6d8f8c1c1e2",
+      "codepoints_path": "variablefont/MaterialSymbolsOutlined[FILL,GRAD,opsz,wght].codepoints",
+      "codepoints_sha256": "8567a3d0512ce8a735a739d325e83ee7010d9bf7f6f8ed6a699c07c817ea907d"
+    },
+    "inter_release": {
+      "url": "https://github.com/rsms/inter/releases/download/v4.1/Inter-4.1.zip",
+      "sha256": "9883fdd4a49d4fb66bd8177ba6625ef9a64aa45899767dde3d36aa425756b11e"
+    }
+  },
+  "default_font": "inter",
+  "fonts": [
+    {
+      "id": "inter",
+      "family": "Inter",
+      "category": "sans",
+      "tags": [
+        "clean",
+        "modern",
+        "neutral",
+        "default"
+      ],
+      "aliases": [
+        "helsinki",
+        "helvetica",
+        "arial"
+      ],
+      "pin": "google_fonts",
+      "path": "ofl/inter/Inter[opsz,wght].ttf",
+      "sha256": "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031",
+      "bytes": 876576,
+      "license_path": "ofl/inter/OFL.txt"
+    },
+    {
+      "id": "inter-bold",
+      "family": "Inter Bold",
+      "category": "sans",
+      "tags": [
+        "bold",
+        "strong",
+        "heavy"
+      ],
+      "aliases": [
+        "adams"
+      ],
+      "pin": "inter_release",
+      "path": "extras/ttf/Inter-Bold.ttf",
+      "sha256": "288316099b1e0a47a4716d159098005eef7c0066921f34e3200393dbdb01947f",
+      "bytes": 420428,
+      "license_path": "LICENSE.txt"
+    },
+    {
+      "id": "source-serif",
+      "family": "Source Serif 4",
+      "category": "serif",
+      "tags": [
+        "book",
+        "classic",
+        "editorial"
+      ],
+      "aliases": [
+        "brussels"
+      ],
+      "pin": "google_fonts",
+      "path": "ofl/sourceserif4/SourceSerif4[opsz,wght].ttf",
+      "sha256": "97b2d4da6e3cb494b5a1e66ae176914d852ccabef49e0c02c0df25f3e39aca0b",
+      "bytes": 1209508,
+      "license_path": "ofl/sourceserif4/OFL.txt"
+    },
+    {
+      "id": "plex-mono",
+      "family": "IBM Plex Mono",
+      "category": "mono",
+      "tags": [
+        "code",
+        "technical",
+        "typewriter"
+      ],
+      "aliases": [
+        "letter-gothic",
+        "menlo",
+        "monaco",
+        "courier",
+        "typewriter"
+      ],
+      "pin": "google_fonts",
+      "path": "ofl/ibmplexmono/IBMPlexMono-Regular.ttf",
+      "sha256": "6a3412f058c7d8dfd9170c41e85ade48e5156ecb89356110ca57a0a27734af46",
+      "bytes": 135580,
+      "license_path": "ofl/ibmplexmono/OFL.txt"
+    },
+    {
+      "id": "libre-baskerville",
+      "family": "Libre Baskerville",
+      "category": "serif",
+      "tags": [
+        "elegant",
+        "classic",
+        "bookish"
+      ],
+      "aliases": [
+        "us"
+      ],
+      "pin": "google_fonts",
+      "path": "ofl/librebaskerville/LibreBaskerville[wght].ttf",
+      "sha256": "05a95421961341c5b2556285e8415df9db27dab4f4abe22b446b3c6a8b916c5d",
+      "bytes": 171900,
+      "license_path": "ofl/librebaskerville/OFL.txt"
+    },
+    {
+      "id": "archivo-black",
+      "family": "Archivo Black",
+      "category": "display",
+      "tags": [
+        "heavy",
+        "poster",
+        "loud"
+      ],
+      "aliases": [
+        "florida",
+        "impact"
+      ],
+      "pin": "google_fonts",
+      "path": "ofl/archivoblack/ArchivoBlack-Regular.ttf",
+      "sha256": "dd9a89a019b4849f66ab75455fe7bdf931311042cbb0f0f97acc061539703180",
+      "bytes": 90988,
+      "license_path": "ofl/archivoblack/OFL.txt"
+    },
+    {
+      "id": "varela-round",
+      "family": "Varela Round",
+      "category": "rounded",
+      "tags": [
+        "friendly",
+        "soft",
+        "playful"
+      ],
+      "aliases": [
+        "belgium"
+      ],
+      "pin": "google_fonts",
+      "path": "ofl/varelaround/VarelaRound-Regular.ttf",
+      "sha256": "e1e47eb66dbc2ddc106661338e712d9176c9e83c669a82fde155324823d03aa2",
+      "bytes": 132748,
+      "license_path": "ofl/varelaround/OFL.txt"
+    },
+    {
+      "id": "bodoni-moda",
+      "family": "Bodoni Moda",
+      "category": "serif",
+      "tags": [
+        "fashion",
+        "contrast",
+        "didone",
+        "elegant"
+      ],
+      "aliases": [
+        "san-diego"
+      ],
+      "pin": "google_fonts",
+      "path": "ofl/bodonimoda/BodoniModa[opsz,wght].ttf",
+      "sha256": "550f5e34ee0a828d7941b1fe9bc58b34e5260d3f33a61532e6d0a0114e79a5cf",
+      "bytes": 162104,
+      "license_path": "ofl/bodonimoda/OFL.txt"
+    },
+    {
+      "id": "roboto-slab",
+      "family": "Roboto Slab",
+      "category": "slab",
+      "tags": [
+        "sturdy",
+        "mechanical",
+        "solid"
+      ],
+      "aliases": [
+        "los-angeles"
+      ],
+      "pin": "google_fonts",
+      "path": "apache/robotoslab/RobotoSlab[wght].ttf",
+      "sha256": "786ae192477447d33c6672c3055fba7cbfe45184c9a79e77a14f15716ca05b16",
+      "bytes": 251880,
+      "license_path": "apache/robotoslab/LICENSE.txt"
+    },
+    {
+      "id": "great-vibes",
+      "family": "Great Vibes",
+      "category": "script",
+      "tags": [
+        "formal",
+        "calligraphy",
+        "wedding",
+        "fancy"
+      ],
+      "aliases": [
+        "calgary"
+      ],
+      "pin": "google_fonts",
+      "path": "ofl/greatvibes/GreatVibes-Regular.ttf",
+      "sha256": "8d509802186f1b51572531ecf313e8098f9a5bfdfaca93f0c9b34467f9982d15",
+      "bytes": 457588,
+      "license_path": "ofl/greatvibes/OFL.txt"
+    },
+    {
+      "id": "jost",
+      "family": "Jost",
+      "category": "sans",
+      "tags": [
+        "geometric",
+        "retro",
+        "bauhaus"
+      ],
+      "aliases": [
+        "atlanta",
+        "futura",
+        "avenir"
+      ],
+      "pin": "google_fonts",
+      "path": "ofl/jost/Jost[wght].ttf",
+      "sha256": "6343b70971000b04c5d401c96ae08ce371086135e999d5e1e1413039c0213076",
+      "bytes": 134996,
+      "license_path": "ofl/jost/OFL.txt"
+    },
+    {
+      "id": "pacifico",
+      "family": "Pacifico",
+      "category": "script",
+      "tags": [
+        "casual",
+        "surf",
+        "retro",
+        "sign"
+      ],
+      "aliases": [
+        "brunei"
+      ],
+      "pin": "google_fonts",
+      "path": "ofl/pacifico/Pacifico-Regular.ttf",
+      "sha256": "5b6c0d5334a7bf77dea52b975c5a0c408878c0f7115ed5b6fb151f634b7bf701",
+      "bytes": 329380,
+      "license_path": "ofl/pacifico/OFL.txt"
+    },
+    {
+      "id": "grenze-gotisch",
+      "family": "Grenze Gotisch",
+      "category": "blackletter",
+      "tags": [
+        "gothic",
+        "medieval",
+        "fraktur",
+        "dramatic"
+      ],
+      "aliases": [
+        "germany"
+      ],
+      "pin": "google_fonts",
+      "path": "ofl/grenzegotisch/GrenzeGotisch[wght].ttf",
+      "sha256": "701b299d8dc002a2b4bea2ff0f1272c0e4081a2835914354804565c410d0c637",
+      "bytes": 193492,
+      "license_path": "ofl/grenzegotisch/OFL.txt"
+    },
+    {
+      "id": "barlow",
+      "family": "Barlow",
+      "category": "sans",
+      "tags": [
+        "din",
+        "industrial",
+        "signage"
+      ],
+      "aliases": [
+        "sofia",
+        "din",
+        "din-condensed"
+      ],
+      "pin": "google_fonts",
+      "path": "ofl/barlow/Barlow-Regular.ttf",
+      "sha256": "95aa02c7c43096e0dd44d787ba6216864a67157e402adab59b35572e0c1577ea",
+      "bytes": 104068,
+      "license_path": "ofl/barlow/OFL.txt"
+    },
+    {
+      "id": "bebas-neue",
+      "family": "Bebas Neue",
+      "category": "display",
+      "tags": [
+        "condensed",
+        "poster",
+        "tall",
+        "classic"
+      ],
+      "aliases": [],
+      "pin": "google_fonts",
+      "path": "ofl/bebasneue/BebasNeue-Regular.ttf",
+      "sha256": "08e4623805102d819f58601e46e345648846075e363b2ceb23313c2d1c83ec73",
+      "bytes": 61400,
+      "license_path": "ofl/bebasneue/OFL.txt"
+    },
+    {
+      "id": "archivo-narrow",
+      "family": "Archivo Narrow",
+      "category": "condensed",
+      "tags": [
+        "narrow",
+        "space-saving",
+        "practical"
+      ],
+      "aliases": [],
+      "pin": "google_fonts",
+      "path": "ofl/archivonarrow/ArchivoNarrow[wght].ttf",
+      "sha256": "adbe027f625c8393ae0f6e174e32e233dda485bc3eda5153ce428275394ef97f",
+      "bytes": 93304,
+      "license_path": "ofl/archivonarrow/OFL.txt"
+    },
+    {
+      "id": "saira-stencil",
+      "family": "Saira Stencil One",
+      "category": "stencil",
+      "tags": [
+        "military",
+        "crate",
+        "industrial"
+      ],
+      "aliases": [],
+      "pin": "google_fonts",
+      "path": "ofl/sairastencilone/SairaStencilOne-Regular.ttf",
+      "sha256": "781496fdaf8e04cf6741b31025f6b4ba84f66021b097a8e0d85cbea2180cf223",
+      "bytes": 109944,
+      "license_path": "ofl/sairastencilone/OFL.txt"
+    },
+    {
+      "id": "caveat",
+      "family": "Caveat",
+      "category": "handwriting",
+      "tags": [
+        "casual",
+        "marker",
+        "notes"
+      ],
+      "aliases": [],
+      "pin": "google_fonts",
+      "path": "ofl/caveat/Caveat[wght].ttf",
+      "sha256": "0bdb6b660482d31531b3945849fba5916b3ef8695da7024a9e6b9ee3c4157988",
+      "bytes": 403648,
+      "license_path": "ofl/caveat/OFL.txt"
+    },
+    {
+      "id": "vt323",
+      "family": "VT323",
+      "category": "pixel",
+      "tags": [
+        "terminal",
+        "lcd",
+        "retro",
+        "8bit"
+      ],
+      "aliases": [],
+      "pin": "google_fonts",
+      "path": "ofl/vt323/VT323-Regular.ttf",
+      "sha256": "cf4de751ada78ceac033dbe16a687742939995b77bc2a052ae17a4957958594d",
+      "bytes": 153116,
+      "license_path": "ofl/vt323/OFL.txt"
+    },
+    {
+      "id": "atkinson",
+      "family": "Atkinson Hyperlegible",
+      "category": "sans",
+      "tags": [
+        "legible",
+        "accessible",
+        "clear"
+      ],
+      "aliases": [],
+      "pin": "google_fonts",
+      "path": "ofl/atkinsonhyperlegible/AtkinsonHyperlegible-Regular.ttf",
+      "sha256": "7fb917c89019896d0b52ee84b7cbb3304c18cb90b19a62f5e32712bd23e97669",
+      "bytes": 54348,
+      "license_path": "ofl/atkinsonhyperlegible/OFL.txt"
+    },
+    {
+      "id": "noto-symbols-2",
+      "family": "Noto Sans Symbols 2",
+      "category": "symbols",
+      "tags": [],
+      "aliases": [],
+      "pin": "google_fonts",
+      "path": "ofl/notosanssymbols2/NotoSansSymbols2-Regular.ttf",
+      "sha256": "7d5fb73b7ca67a6798101741f5d280a3d016a56a197afcd4199dbb57b4b82a21",
+      "bytes": 1233128,
+      "license_path": "ofl/notosanssymbols2/OFL.txt",
+      "hidden": true
+    },
+    {
+      "id": "noto-symbols-1",
+      "family": "Noto Sans Symbols",
+      "path": "ofl/notosanssymbols/NotoSansSymbols[wght].ttf",
+      "sha256": "f7e7e04b4a24b6c78893d50cbfd2b2f6cae49617ab047bfef668d252adb128f7",
+      "bytes": 372684,
+      "license_path": "ofl/notosanssymbols/OFL.txt",
+      "category": "symbols",
+      "tags": [],
+      "aliases": [],
+      "pin": "google_fonts",
+      "hidden": true
+    },
+    {
+      "id": "noto-emoji",
+      "family": "Noto Emoji",
+      "path": "ofl/notoemoji/NotoEmoji[wght].ttf",
+      "sha256": "de6c18832938afc99caf132b39d6a30a19bac7f2e812e28db2535b4608d27551",
+      "bytes": 1982596,
+      "license_path": "ofl/notoemoji/OFL.txt",
+      "category": "symbols",
+      "tags": [],
+      "aliases": [],
+      "pin": "google_fonts",
+      "hidden": true
+    },
+    {
+      "id": "icons",
+      "family": "Oh Brother Icons",
+      "category": "symbols",
+      "tags": [],
+      "aliases": [],
+      "pin": "material_icons",
+      "path": "variablefont/MaterialSymbolsOutlined[FILL,GRAD,opsz,wght].ttf",
+      "sha256": "b5126c4655e0756f334d684104156b98b82ef7d61212a81c041b9e6cfa8ba925",
+      "bytes": 10643720,
+      "license_path": "LICENSE",
+      "hidden": true,
+      "subset_to_symbols": true
+    }
+  ],
+  "samples": {
+    "sans": "GARAGE KEYS",
+    "serif": "Pantry — Flour",
+    "mono": "GPIO 14 · 3V3",
+    "slab": "TOOL WALL",
+    "display": "DANGER 240V",
+    "script": "Happy Birthday!",
+    "rounded": "Snack Box",
+    "condensed": "SPICE RACK No.4",
+    "stencil": "FRAGILE",
+    "blackletter": "Ye Olde Router",
+    "handwriting": "leftovers 7/29",
+    "pixel": "12V DC",
+    "default": "THE QUICK BROWN FOX"
+  },
+  "symbols": [
+    {
+      "name": "left",
+      "kind": "text",
+      "text": "←",
+      "keywords": "arrow west back"
+    },
+    {
+      "name": "up",
+      "kind": "text",
+      "text": "↑",
+      "keywords": "arrow north"
+    },
+    {
+      "name": "right",
+      "kind": "text",
+      "text": "→",
+      "keywords": "arrow east forward"
+    },
+    {
+      "name": "down",
+      "kind": "text",
+      "text": "↓",
+      "keywords": "arrow south"
+    },
+    {
+      "name": "leftright",
+      "kind": "text",
+      "text": "↔",
+      "keywords": "arrow both horizontal"
+    },
+    {
+      "name": "updown",
+      "kind": "text",
+      "text": "↕",
+      "keywords": "arrow both vertical"
+    },
+    {
+      "name": "refresh",
+      "kind": "text",
+      "text": "↻",
+      "keywords": "arrow cycle rotate clockwise"
+    },
+    {
+      "name": "ohm",
+      "kind": "text",
+      "text": "Ω",
+      "keywords": "resistance electrical omega"
+    },
+    {
+      "name": "micro",
+      "kind": "text",
+      "text": "µ",
+      "keywords": "mu micron si"
+    },
+    {
+      "name": "degree",
+      "kind": "text",
+      "text": "°",
+      "keywords": "temperature angle"
+    },
+    {
+      "name": "plusminus",
+      "kind": "text",
+      "text": "±",
+      "keywords": "tolerance"
+    },
+    {
+      "name": "ground",
+      "kind": "text",
+      "text": "⏚",
+      "keywords": "earth electrical gnd"
+    },
+    {
+      "name": "ac",
+      "kind": "text",
+      "text": "⏦",
+      "keywords": "alternating current power electrical"
+    },
+    {
+      "name": "dc",
+      "kind": "text",
+      "text": "⎓",
+      "keywords": "direct current power electrical"
+    },
+    {
+      "name": "lightning",
+      "kind": "text",
+      "text": "⚡",
+      "keywords": "voltage high danger electrical zap"
+    },
+    {
+      "name": "power",
+      "kind": "text",
+      "text": "⏻",
+      "keywords": "on off standby button"
+    },
+    {
+      "name": "delta",
+      "kind": "text",
+      "text": "Δ",
+      "keywords": "difference greek triangle"
+    },
+    {
+      "name": "pi",
+      "kind": "text",
+      "text": "π",
+      "keywords": "greek math"
+    },
+    {
+      "name": "sigma",
+      "kind": "text",
+      "text": "Σ",
+      "keywords": "sum greek math"
+    },
+    {
+      "name": "warning",
+      "kind": "text",
+      "text": "⚠",
+      "keywords": "caution hazard alert danger"
+    },
+    {
+      "name": "skull",
+      "kind": "text",
+      "text": "☠",
+      "keywords": "death poison danger crossbones"
+    },
+    {
+      "name": "radiation",
+      "kind": "text",
+      "text": "☢",
+      "keywords": "radioactive nuclear hazard"
+    },
+    {
+      "name": "biohazard",
+      "kind": "text",
+      "text": "☣",
+      "keywords": "biological hazard"
+    },
+    {
+      "name": "recycle",
+      "kind": "text",
+      "text": "♻",
+      "keywords": "recycling environment"
+    },
+    {
+      "name": "cmd",
+      "kind": "text",
+      "text": "⌘",
+      "keywords": "command mac key apple"
+    },
+    {
+      "name": "option",
+      "kind": "text",
+      "text": "⌥",
+      "keywords": "alt mac key"
+    },
+    {
+      "name": "shift",
+      "kind": "text",
+      "text": "⇧",
+      "keywords": "mac key arrow"
+    },
+    {
+      "name": "control",
+      "kind": "text",
+      "text": "⌃",
+      "keywords": "ctrl mac key chevron"
+    },
+    {
+      "name": "eject",
+      "kind": "text",
+      "text": "⏏",
+      "keywords": "mac key media"
+    },
+    {
+      "name": "backspace",
+      "kind": "text",
+      "text": "⌫",
+      "keywords": "delete mac key erase"
+    },
+    {
+      "name": "tab",
+      "kind": "text",
+      "text": "⇥",
+      "keywords": "mac key indent"
+    },
+    {
+      "name": "return",
+      "kind": "text",
+      "text": "⏎",
+      "keywords": "enter mac key newline"
+    },
+    {
+      "name": "escape",
+      "kind": "text",
+      "text": "⎋",
+      "keywords": "esc mac key"
+    },
+    {
+      "name": "star",
+      "kind": "text",
+      "text": "★",
+      "keywords": "favorite filled"
+    },
+    {
+      "name": "star-outline",
+      "kind": "text",
+      "text": "☆",
+      "keywords": "favorite empty"
+    },
+    {
+      "name": "circle",
+      "kind": "text",
+      "text": "●",
+      "keywords": "dot filled bullet"
+    },
+    {
+      "name": "square",
+      "kind": "text",
+      "text": "■",
+      "keywords": "box filled block"
+    },
+    {
+      "name": "triangle",
+      "kind": "text",
+      "text": "▲",
+      "keywords": "up filled"
+    },
+    {
+      "name": "diamond",
+      "kind": "text",
+      "text": "◆",
+      "keywords": "filled gem"
+    },
+    {
+      "name": "check",
+      "kind": "text",
+      "text": "✓",
+      "keywords": "yes ok tick done"
+    },
+    {
+      "name": "cross",
+      "kind": "text",
+      "text": "✗",
+      "keywords": "no ballot x wrong"
+    },
+    {
+      "name": "heart",
+      "kind": "text",
+      "text": "♥",
+      "keywords": "love suit card"
+    },
+    {
+      "name": "spade",
+      "kind": "text",
+      "text": "♠",
+      "keywords": "suit card"
+    },
+    {
+      "name": "club",
+      "kind": "text",
+      "text": "♣",
+      "keywords": "suit card"
+    },
+    {
+      "name": "bullet",
+      "kind": "text",
+      "text": "•",
+      "keywords": "dot point"
+    },
+    {
+      "name": "note",
+      "kind": "text",
+      "text": "♪",
+      "keywords": "music eighth"
+    },
+    {
+      "name": "notes",
+      "kind": "text",
+      "text": "♫",
+      "keywords": "music beamed"
+    },
+    {
+      "name": "flat",
+      "kind": "text",
+      "text": "♭",
+      "keywords": "music b"
+    },
+    {
+      "name": "sharp",
+      "kind": "text",
+      "text": "♯",
+      "keywords": "music hash"
+    },
+    {
+      "name": "scissors",
+      "kind": "text",
+      "text": "✂",
+      "keywords": "cut"
+    },
+    {
+      "name": "phone",
+      "kind": "text",
+      "text": "☎",
+      "keywords": "telephone call"
+    },
+    {
+      "name": "mail",
+      "kind": "text",
+      "text": "✉",
+      "keywords": "envelope letter email"
+    },
+    {
+      "name": "pencil",
+      "kind": "text",
+      "text": "✎",
+      "keywords": "write edit"
+    },
+    {
+      "name": "flag",
+      "kind": "text",
+      "text": "⚑",
+      "keywords": "marker filled"
+    },
+    {
+      "name": "gear",
+      "kind": "text",
+      "text": "⚙",
+      "keywords": "settings machine cog"
+    },
+    {
+      "name": "anchor",
+      "kind": "text",
+      "text": "⚓",
+      "keywords": "boat marine"
+    },
+    {
+      "name": "atom",
+      "kind": "text",
+      "text": "⚛",
+      "keywords": "science physics"
+    },
+    {
+      "name": "sun",
+      "kind": "text",
+      "text": "☀",
+      "keywords": "weather day sunny"
+    },
+    {
+      "name": "moon",
+      "kind": "text",
+      "text": "☽",
+      "keywords": "night crescent"
+    },
+    {
+      "name": "snowflake",
+      "kind": "text",
+      "text": "❄",
+      "keywords": "cold freeze winter frozen"
+    },
+    {
+      "name": "umbrella",
+      "kind": "text",
+      "text": "☂",
+      "keywords": "rain weather"
+    },
+    {
+      "name": "coffee",
+      "kind": "text",
+      "text": "☕",
+      "keywords": "cup hot beverage tea"
+    },
+    {
+      "name": "hourglass",
+      "kind": "text",
+      "text": "⌛",
+      "keywords": "time wait sand"
+    },
+    {
+      "name": "watch",
+      "kind": "text",
+      "text": "⌚",
+      "keywords": "time clock"
+    },
+    {
+      "name": "keyboard",
+      "kind": "text",
+      "text": "⌨",
+      "keywords": "typing computer"
+    },
+    {
+      "name": "house",
+      "kind": "text",
+      "text": "⌂",
+      "keywords": "home building"
+    },
+    {
+      "name": "peace",
+      "kind": "text",
+      "text": "☮",
+      "keywords": "sign"
+    },
+    {
+      "name": "yinyang",
+      "kind": "text",
+      "text": "☯",
+      "keywords": "balance tao"
+    },
+    {
+      "name": "female",
+      "kind": "text",
+      "text": "♀",
+      "keywords": "gender venus woman"
+    },
+    {
+      "name": "male",
+      "kind": "text",
+      "text": "♂",
+      "keywords": "gender mars man"
+    },
+    {
+      "name": "infinity",
+      "kind": "text",
+      "text": "∞",
+      "keywords": "forever math"
+    },
+    {
+      "name": "multiply",
+      "kind": "text",
+      "text": "×",
+      "keywords": "times x math"
+    },
+    {
+      "name": "divide",
+      "kind": "text",
+      "text": "÷",
+      "keywords": "math"
+    },
+    {
+      "name": "approx",
+      "kind": "text",
+      "text": "≈",
+      "keywords": "approximately math tilde"
+    },
+    {
+      "name": "notequal",
+      "kind": "text",
+      "text": "≠",
+      "keywords": "math"
+    },
+    {
+      "name": "lessequal",
+      "kind": "text",
+      "text": "≤",
+      "keywords": "math"
+    },
+    {
+      "name": "greaterequal",
+      "kind": "text",
+      "text": "≥",
+      "keywords": "math"
+    },
+    {
+      "name": "sqrt",
+      "kind": "text",
+      "text": "√",
+      "keywords": "root radical math"
+    },
+    {
+      "name": "section",
+      "kind": "text",
+      "text": "§",
+      "keywords": "legal paragraph"
+    },
+    {
+      "name": "dagger",
+      "kind": "text",
+      "text": "†",
+      "keywords": "footnote"
+    },
+    {
+      "name": "copyright",
+      "kind": "text",
+      "text": "©",
+      "keywords": "legal c"
+    },
+    {
+      "name": "registered",
+      "kind": "text",
+      "text": "®",
+      "keywords": "legal r trademark"
+    },
+    {
+      "name": "trademark",
+      "kind": "text",
+      "text": "™",
+      "keywords": "legal tm"
+    },
+    {
+      "name": "mm2",
+      "kind": "text",
+      "text": "mm²",
+      "keywords": "square millimeter unit area"
+    },
+    {
+      "name": "cm2",
+      "kind": "text",
+      "text": "cm²",
+      "keywords": "square centimeter unit area"
+    },
+    {
+      "name": "m2",
+      "kind": "text",
+      "text": "m²",
+      "keywords": "square meter unit area"
+    },
+    {
+      "name": "km2",
+      "kind": "text",
+      "text": "km²",
+      "keywords": "square kilometer unit area"
+    },
+    {
+      "name": "mm3",
+      "kind": "text",
+      "text": "mm³",
+      "keywords": "cubic millimeter unit volume"
+    },
+    {
+      "name": "cm3",
+      "kind": "text",
+      "text": "cm³",
+      "keywords": "cubic centimeter unit volume"
+    },
+    {
+      "name": "m3",
+      "kind": "text",
+      "text": "m³",
+      "keywords": "cubic meter unit volume"
+    },
+    {
+      "name": "ml",
+      "kind": "text",
+      "text": "mL",
+      "keywords": "milliliter unit volume"
+    },
+    {
+      "name": "liter",
+      "kind": "text",
+      "text": "L",
+      "keywords": "litre unit volume"
+    },
+    {
+      "name": "mg",
+      "kind": "text",
+      "text": "mg",
+      "keywords": "milligram unit weight"
+    },
+    {
+      "name": "kg",
+      "kind": "text",
+      "text": "kg",
+      "keywords": "kilogram unit weight"
+    },
+    {
+      "name": "celsius",
+      "kind": "text",
+      "text": "°C",
+      "keywords": "degrees temperature centigrade"
+    },
+    {
+      "name": "fahrenheit",
+      "kind": "text",
+      "text": "°F",
+      "keywords": "degrees temperature"
+    },
+    {
+      "name": "inches",
+      "kind": "text",
+      "text": "in.",
+      "keywords": "unit length in"
+    },
+    {
+      "name": "ounces",
+      "kind": "text",
+      "text": "oz.",
+      "keywords": "unit weight oz"
+    },
+    {
+      "name": "cent",
+      "kind": "text",
+      "text": "¢",
+      "keywords": "currency money"
+    },
+    {
+      "name": "yen",
+      "kind": "text",
+      "text": "¥",
+      "keywords": "currency money japan"
+    },
+    {
+      "name": "sterling",
+      "kind": "text",
+      "text": "£",
+      "keywords": "currency money pound uk"
+    },
+    {
+      "name": "euro",
+      "kind": "text",
+      "text": "€",
+      "keywords": "currency money"
+    },
+    {
+      "name": "permille",
+      "kind": "text",
+      "text": "‰",
+      "keywords": "per thousand ratio"
+    },
+    {
+      "name": "micrometer",
+      "kind": "text",
+      "text": "µm",
+      "keywords": "micron um unit length"
+    },
+    {
+      "name": "lbs",
+      "kind": "text",
+      "text": "lb.",
+      "keywords": "pounds unit weight"
+    },
+    {
+      "name": "feet",
+      "kind": "text",
+      "text": "ft.",
+      "keywords": "ft unit length"
+    },
+    {
+      "name": "milliamp",
+      "kind": "text",
+      "text": "mA",
+      "keywords": "ma current electrical"
+    },
+    {
+      "name": "christmas-tree",
+      "kind": "text",
+      "text": "🎄",
+      "keywords": "xmas holiday"
+    },
+    {
+      "name": "cassette",
+      "kind": "text",
+      "text": "📼",
+      "keywords": "tape audio vhs"
+    },
+    {
+      "name": "tank",
+      "kind": "text",
+      "text": "🪖",
+      "keywords": "military army helmet"
+    },
+    {
+      "name": "treble-clef",
+      "kind": "text",
+      "text": "🎼",
+      "keywords": "music score"
+    },
+    {
+      "name": "horse",
+      "kind": "text",
+      "text": "🐴",
+      "keywords": "animal"
+    },
+    {
+      "name": "cat",
+      "kind": "text",
+      "text": "🐱",
+      "keywords": "animal pet"
+    },
+    {
+      "name": "panda",
+      "kind": "text",
+      "text": "🐼",
+      "keywords": "animal bear"
+    },
+    {
+      "name": "lion",
+      "kind": "text",
+      "text": "🦁",
+      "keywords": "animal"
+    },
+    {
+      "name": "fish",
+      "kind": "text",
+      "text": "🐟",
+      "keywords": "animal sea"
+    },
+    {
+      "name": "lobster",
+      "kind": "text",
+      "text": "🦞",
+      "keywords": "animal sea crustacean"
+    },
+    {
+      "name": "dinosaur",
+      "kind": "text",
+      "text": "🦖",
+      "keywords": "animal trex"
+    },
+    {
+      "name": "point-right",
+      "kind": "text",
+      "text": "☞",
+      "keywords": "hand finger index"
+    },
+    {
+      "name": "victory",
+      "kind": "text",
+      "text": "✌",
+      "keywords": "peace hand fingers"
+    },
+    {
+      "name": "traffic-cone",
+      "kind": "text",
+      "text": "🚧",
+      "keywords": "construction safety barrier"
+    },
+    {
+      "name": "strawberry",
+      "kind": "text",
+      "text": "🍓",
+      "keywords": "fruit berry"
+    },
+    {
+      "name": "cherries",
+      "kind": "text",
+      "text": "🍒",
+      "keywords": "fruit"
+    },
+    {
+      "name": "apple",
+      "kind": "text",
+      "text": "🍎",
+      "keywords": "fruit"
+    },
+    {
+      "name": "birthday-cake",
+      "kind": "text",
+      "text": "🎂",
+      "keywords": "party celebration candles"
+    },
+    {
+      "name": "soccer",
+      "kind": "text",
+      "text": "⚽",
+      "keywords": "football ball sport"
+    },
+    {
+      "name": "steering-wheel",
+      "kind": "text",
+      "text": "🛞",
+      "keywords": "car drive tire"
+    },
+    {
+      "name": "bomb",
+      "kind": "text",
+      "text": "💣",
+      "keywords": "explosive cartoon"
+    },
+    {
+      "name": "handbag",
+      "kind": "text",
+      "text": "👜",
+      "keywords": "purse bag"
+    },
+    {
+      "name": "rainbow",
+      "kind": "text",
+      "text": "🌈",
+      "keywords": "weather color"
+    },
+    {
+      "name": "saturn",
+      "kind": "text",
+      "text": "🪐",
+      "keywords": "planet space rings"
+    },
+    {
+      "name": "shooting-star",
+      "kind": "text",
+      "text": "🌠",
+      "keywords": "comet wish space"
+    },
+    {
+      "name": "earth",
+      "kind": "text",
+      "text": "🌍",
+      "keywords": "globe world planet"
+    },
+    {
+      "name": "crown",
+      "kind": "text",
+      "text": "👑",
+      "keywords": "king queen royal"
+    },
+    {
+      "name": "zzz",
+      "kind": "text",
+      "text": "💤",
+      "keywords": "sleep snore"
+    },
+    {
+      "name": "guitar",
+      "kind": "text",
+      "text": "🎸",
+      "keywords": "music instrument"
+    },
+    {
+      "name": "ghost",
+      "kind": "text",
+      "text": "👻",
+      "keywords": "spooky halloween"
+    },
+    {
+      "name": "rabbit",
+      "kind": "text",
+      "text": "🐇",
+      "keywords": "bunny animal"
+    },
+    {
+      "name": "palm-tree",
+      "kind": "text",
+      "text": "🌴",
+      "keywords": "tropical beach vacation"
+    },
+    {
+      "name": "snowman",
+      "kind": "text",
+      "text": "⛄",
+      "keywords": "winter frosty"
+    },
+    {
+      "name": "arrow-right-solid",
+      "kind": "icon",
+      "cp": 58824,
+      "keywords": "bold filled"
+    },
+    {
+      "name": "arrow-left-solid",
+      "kind": "icon",
+      "cp": 58820,
+      "keywords": "bold filled"
+    },
+    {
+      "name": "arrow-up-solid",
+      "kind": "icon",
+      "cp": 58840,
+      "keywords": "bold filled"
+    },
+    {
+      "name": "arrow-down-solid",
+      "kind": "icon",
+      "cp": 58843,
+      "keywords": "bold filled"
+    },
+    {
+      "name": "plug",
+      "kind": "icon",
+      "cp": 58940,
+      "keywords": "power cord electrical outlet"
+    },
+    {
+      "name": "home",
+      "kind": "icon",
+      "cp": 59826,
+      "keywords": "house building"
+    },
+    {
+      "name": "hourglass2",
+      "kind": "icon",
+      "cp": 59531,
+      "keywords": "time wait sand"
+    },
+    {
+      "name": "open-book",
+      "kind": "icon",
+      "cp": 58982,
+      "keywords": "reading pages"
+    },
+    {
+      "name": "envelope",
+      "kind": "icon",
+      "cp": 57689,
+      "keywords": "mail letter post"
+    },
+    {
+      "name": "floppy",
+      "kind": "icon",
+      "cp": 57697,
+      "keywords": "disk save"
+    },
+    {
+      "name": "computer",
+      "kind": "icon",
+      "cp": 58142,
+      "keywords": "pc desktop"
+    },
+    {
+      "name": "keyboard2",
+      "kind": "icon",
+      "cp": 58130,
+      "keywords": "typing computer"
+    },
+    {
+      "name": "mouse",
+      "kind": "icon",
+      "cp": 58147,
+      "keywords": "computer pointer"
+    },
+    {
+      "name": "hammer",
+      "kind": "icon",
+      "cp": 59993,
+      "keywords": "tool"
+    },
+    {
+      "name": "screwdriver",
+      "kind": "icon",
+      "cp": 61707,
+      "keywords": "tool"
+    },
+    {
+      "name": "fax",
+      "kind": "icon",
+      "cp": 60120,
+      "keywords": "machine office"
+    },
+    {
+      "name": "movie-camera",
+      "kind": "icon",
+      "cp": 57419,
+      "keywords": "film video"
+    },
+    {
+      "name": "music-note",
+      "kind": "icon",
+      "cp": 58373,
+      "keywords": "song"
+    },
+    {
+      "name": "television",
+      "kind": "icon",
+      "cp": 58939,
+      "keywords": "tv screen"
+    },
+    {
+      "name": "boombox",
+      "kind": "icon",
+      "cp": 57406,
+      "keywords": "radio stereo music"
+    },
+    {
+      "name": "telephone",
+      "kind": "icon",
+      "cp": 61652,
+      "keywords": "phone call desk"
+    },
+    {
+      "name": "folder",
+      "kind": "icon",
+      "cp": 58055,
+      "keywords": "file directory"
+    },
+    {
+      "name": "briefcase",
+      "kind": "icon",
+      "cp": 59715,
+      "keywords": "work office bag"
+    },
+    {
+      "name": "camera",
+      "kind": "icon",
+      "cp": 58386,
+      "keywords": "photo picture"
+    },
+    {
+      "name": "clock",
+      "kind": "icon",
+      "cp": 61398,
+      "keywords": "time wall"
+    },
+    {
+      "name": "scissors2",
+      "kind": "icon",
+      "cp": 57678,
+      "keywords": "cut"
+    },
+    {
+      "name": "padlock",
+      "kind": "icon",
+      "cp": 59545,
+      "keywords": "lock security"
+    },
+    {
+      "name": "key",
+      "kind": "icon",
+      "cp": 59196,
+      "keywords": "unlock"
+    },
+    {
+      "name": "factory",
+      "kind": "icon",
+      "cp": 60348,
+      "keywords": "building industry smokestack"
+    },
+    {
+      "name": "lighthouse",
+      "kind": "icon",
+      "cp": 60346,
+      "keywords": "building beacon coast tower"
+    },
+    {
+      "name": "car",
+      "kind": "icon",
+      "cp": 61431,
+      "keywords": "vehicle auto"
+    },
+    {
+      "name": "bus",
+      "kind": "icon",
+      "cp": 61430,
+      "keywords": "vehicle transit"
+    },
+    {
+      "name": "train",
+      "kind": "icon",
+      "cp": 58736,
+      "keywords": "vehicle rail"
+    },
+    {
+      "name": "plane",
+      "kind": "icon",
+      "cp": 58681,
+      "keywords": "vehicle aircraft flight"
+    },
+    {
+      "name": "truck",
+      "kind": "icon",
+      "cp": 58712,
+      "keywords": "vehicle lorry"
+    },
+    {
+      "name": "ship",
+      "kind": "icon",
+      "cp": 61429,
+      "keywords": "vehicle boat sea"
+    },
+    {
+      "name": "rocket",
+      "kind": "icon",
+      "cp": 60315,
+      "keywords": "vehicle space launch"
+    },
+    {
+      "name": "motorbike",
+      "kind": "icon",
+      "cp": 59897,
+      "keywords": "vehicle motorcycle"
+    },
+    {
+      "name": "bicycle",
+      "kind": "icon",
+      "cp": 58671,
+      "keywords": "vehicle bike cycling"
+    },
+    {
+      "name": "restaurant",
+      "kind": "icon",
+      "cp": 58732,
+      "keywords": "fork knife food dining"
+    },
+    {
+      "name": "no-smoking",
+      "kind": "icon",
+      "cp": 60234,
+      "keywords": "cigarette forbidden sign"
+    },
+    {
+      "name": "no-entry",
+      "kind": "icon",
+      "cp": 61580,
+      "keywords": "forbidden sign prohibited"
+    },
+    {
+      "name": "parking",
+      "kind": "icon",
+      "cp": 58703,
+      "keywords": "sign car p"
+    },
+    {
+      "name": "wheelchair",
+      "kind": "icon",
+      "cp": 59668,
+      "keywords": "accessible handicap sign"
+    },
+    {
+      "name": "escalator",
+      "kind": "icon",
+      "cp": 61857,
+      "keywords": "stairs moving"
+    },
+    {
+      "name": "stairs",
+      "kind": "icon",
+      "cp": 61865,
+      "keywords": "steps"
+    },
+    {
+      "name": "man",
+      "kind": "icon",
+      "cp": 58603,
+      "keywords": "person male restroom"
+    },
+    {
+      "name": "woman",
+      "kind": "icon",
+      "cp": 57662,
+      "keywords": "person female restroom"
+    },
+    {
+      "name": "fire",
+      "kind": "icon",
+      "cp": 61269,
+      "keywords": "flame burn"
+    },
+    {
+      "name": "fire-extinguisher",
+      "kind": "icon",
+      "cp": 61912,
+      "keywords": "safety"
+    },
+    {
+      "name": "wine",
+      "kind": "icon",
+      "cp": 61928,
+      "keywords": "glass drink alcohol"
+    },
+    {
+      "name": "family",
+      "kind": "icon",
+      "cp": 61858,
+      "keywords": "people group"
+    },
+    {
+      "name": "gift",
+      "kind": "icon",
+      "cp": 59638,
+      "keywords": "present box"
+    },
+    {
+      "name": "handshake",
+      "kind": "icon",
+      "cp": 60363,
+      "keywords": "deal agreement"
+    },
+    {
+      "name": "smiley",
+      "kind": "icon",
+      "cp": 59411,
+      "keywords": "face happy"
+    },
+    {
+      "name": "alarm-clock",
+      "kind": "icon",
+      "cp": 59477,
+      "keywords": "time wake"
+    },
+    {
+      "name": "lightbulb",
+      "kind": "icon",
+      "cp": 59663,
+      "keywords": "idea light"
+    },
+    {
+      "name": "chart-up",
+      "kind": "icon",
+      "cp": 59621,
+      "keywords": "graph growth trend"
+    },
+    {
+      "name": "bar-chart",
+      "kind": "icon",
+      "cp": 57963,
+      "keywords": "graph stats"
+    },
+    {
+      "name": "syringe",
+      "kind": "icon",
+      "cp": 57651,
+      "keywords": "needle injection medical"
+    },
+    {
+      "name": "bandaid",
+      "kind": "icon",
+      "cp": 58355,
+      "keywords": "plaster bandage medical"
+    },
+    {
+      "name": "pill",
+      "kind": "icon",
+      "cp": 57631,
+      "keywords": "capsule medicine drug"
+    },
+    {
+      "name": "first-aid",
+      "kind": "icon",
+      "cp": 61705,
+      "keywords": "kit medical cross"
+    },
+    {
+      "name": "microscope",
+      "kind": "icon",
+      "cp": 59962,
+      "keywords": "lab science"
+    },
+    {
+      "name": "helicopter",
+      "kind": "icon",
+      "cp": 62988,
+      "keywords": "aircraft chopper"
+    },
+    {
+      "name": "sailboat",
+      "kind": "icon",
+      "cp": 58626,
+      "keywords": "boat yacht sea"
+    },
+    {
+      "name": "hospital",
+      "kind": "icon",
+      "cp": 58696,
+      "keywords": "building medical"
+    },
+    {
+      "name": "calendar",
+      "kind": "icon",
+      "cp": 60364,
+      "keywords": "date schedule"
+    },
+    {
+      "name": "bank",
+      "kind": "icon",
+      "cp": 59471,
+      "keywords": "building money"
+    },
+    {
+      "name": "shopping-cart",
+      "kind": "icon",
+      "cp": 59596,
+      "keywords": "trolley buy store"
+    },
+    {
+      "name": "cctv",
+      "kind": "icon",
+      "cp": 61418,
+      "keywords": "camera surveillance security"
+    },
+    {
+      "name": "fuel-pump",
+      "kind": "icon",
+      "cp": 58694,
+      "keywords": "gas petrol station"
+    },
+    {
+      "name": "faucet",
+      "kind": "icon",
+      "cp": 57976,
+      "keywords": "tap water plumbing"
+    },
+    {
+      "name": "calculator",
+      "kind": "icon",
+      "cp": 59999,
+      "keywords": "math office"
+    },
+    {
+      "name": "clipboard",
+      "kind": "icon",
+      "cp": 57679,
+      "keywords": "checklist notes"
+    },
+    {
+      "name": "smartphone",
+      "kind": "icon",
+      "cp": 59322,
+      "keywords": "mobile cell phone"
+    },
+    {
+      "name": "printer",
+      "kind": "icon",
+      "cp": 59565,
+      "keywords": "print office"
+    },
+    {
+      "name": "laptop",
+      "kind": "icon",
+      "cp": 58144,
+      "keywords": "notebook computer"
+    },
+    {
+      "name": "wifi",
+      "kind": "icon",
+      "cp": 58942,
+      "keywords": "wireless network signal"
+    },
+    {
+      "name": "tag",
+      "kind": "icon",
+      "cp": 61531,
+      "keywords": "price label"
+    },
+    {
+      "name": "pen",
+      "kind": "icon",
+      "cp": 62980,
+      "keywords": "write ink ballpoint"
+    },
+    {
+      "name": "wreath",
+      "kind": "icon",
+      "cp": 58339,
+      "keywords": "holiday christmas leaves"
+    },
+    {
+      "name": "info",
+      "kind": "icon",
+      "cp": 59534,
+      "keywords": "information sign i"
+    },
+    {
+      "name": "paw",
+      "kind": "icon",
+      "cp": 59677,
+      "keywords": "animal print pet"
+    },
+    {
+      "name": "thumbs-up",
+      "kind": "icon",
+      "cp": 62839,
+      "keywords": "like ok approve"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+Provenance map: PT-H500/P700/E500 raster protocol spec
+========================================================
+
+Source document (the only protocol authority for the spec):
+  Title:     Software Developer's Manual —
+             Raster Command Reference PT-H500/P700/E500 Version 1.11
+  Copyright: © 2014 Brother Industries, Ltd. All rights reserved.
+  Kept at:   user's Google Drive, file id 1UAp_Efs6NSkBN737CMb4R8nodjWTqq1A
+             (the PDF itself must NOT be copied into this repo or
+             redistributed, per its license terms)
+  Local text extraction used for drafting (session-scoped, not tracked):
+    /Users/curtisg/.claude/projects/-Users-curtisg-src-oh-brother/6ce7041c-d719-4712-ac65-545e1e7fda43/tool-results/toolu_01GbsoRMyhQWhn1q9SBHRd2b.txt
+
+Hardware-verified facts additionally sourced from this repo only:
+  AGENTS.md ("Hardware notes", "PT-P300BT Bluetooth gotchas") and
+  src/oh_brother/protocol.py comments. No third-party driver source
+  (ptouch-print, printer-driver-ptouch, Ircama's scripts, etc.) was
+  consulted.
+
+Spec drafted: 2026-08-15

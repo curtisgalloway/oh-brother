@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: 2026 Curtis Galloway
+# SPDX-License-Identifier: Apache-2.0
+
+[workspace]
+resolver = "2"
+members = [
+    "pt-protocol",
+    "label-render",
+    "label-cli",
+    "label-server",
+    "label-app",
+]
+
+[workspace.package]
+version = "0.1.1"
+edition = "2021"
+license = "Apache-2.0"

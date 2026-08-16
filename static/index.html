@@ -1,0 +1,1177 @@
+<!--
+Copyright 2026 Curtis Galloway
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>oh, brother — label maker</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏷</text></svg>">
+<style>
+  :root {
+    --bg: #141517;
+    --panel: #1d1f23;
+    --panel-edge: #2a2d33;
+    --ink: #e8e6e0;
+    --dim: #8b8e96;
+    --accent: #ffcf24;
+    --accent-dark: #d9a800;
+    --danger: #ff5d45;
+    --ok: #57d97a;
+    --tape: #f5f4ef;
+    --mono: "Menlo", "Monaco", monospace;
+    --display: "DIN Alternate", "DIN Condensed", "Avenir Next Condensed", sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
+  body {
+    background:
+      radial-gradient(1200px 500px at 70% -10%, #1e2127 0%, transparent 60%),
+      var(--bg);
+    color: var(--ink);
+    font-family: "Avenir Next", "Helvetica Neue", sans-serif;
+    font-size: 15px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0 20px 60px;
+  }
+  body::after { /* grain */
+    content: "";
+    position: fixed; inset: 0; pointer-events: none; opacity: .05;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  header {
+    width: 100%; max-width: 880px;
+    display: flex; align-items: baseline; gap: 16px;
+    padding: 26px 0 14px;
+  }
+  h1 {
+    font-family: var(--display);
+    font-size: 30px; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--accent);
+  }
+  h1 small { color: var(--dim); font-size: 15px; letter-spacing: .12em; }
+  #mode {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .2em;
+    text-transform: uppercase; color: var(--dim);
+    border: 1px solid var(--panel-edge); border-radius: 4px; padding: 2px 8px;
+  }
+  #status {
+    margin-left: auto; display: flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 12px; color: var(--dim);
+    cursor: pointer; user-select: none;
+  }
+  #status .dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--danger); box-shadow: 0 0 6px var(--danger);
+  }
+  #printersel {
+    font-family: var(--mono); font-size: 11px; color: var(--dim);
+    background: transparent; border: 1px solid var(--panel-edge);
+    border-radius: 4px; padding: 2px 6px; max-width: 220px;
+  }
+  #status.on .dot { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+  #status.action { color: var(--accent); }
+
+  .hazard {
+    width: 100%; max-width: 880px; height: 6px; border-radius: 3px;
+    background: repeating-linear-gradient(-45deg,
+      var(--accent) 0 12px, #17181a 12px 24px);
+    margin-bottom: 26px; opacity: .85;
+  }
+
+  main { width: 100%; max-width: 880px; display: flex; flex-direction: column; gap: 18px; }
+
+  /* ---- preview bench ---- */
+  #bench {
+    background: linear-gradient(180deg, #191b1f, #15171a);
+    border: 1px solid var(--panel-edge); border-radius: 10px;
+    padding: 34px 26px 12px;
+    overflow-x: auto;
+    text-align: center;
+  }
+  #tape {
+    display: inline-flex; align-items: center;
+    background: var(--tape); border-radius: 3px;
+    box-shadow: 0 6px 18px rgba(0,0,0,.55), 0 1px 0 rgba(255,255,255,.06) inset;
+    padding: 0;
+    min-height: 40px;
+  }
+  #tape .lead { align-self: stretch; width: 22px; position: relative; }
+  #tape .lead::after {
+    content: ""; position: absolute; top: 2px; bottom: 2px; width: 0;
+    border-left: 2px dashed #b9b6ac;
+  }
+  #tape .lead.l::after { right: 0; } #tape .lead.r::after { left: 0; }
+  /* drawing-style break mark, shown when a long blank lead is elided */
+  #tape .lead .brk {
+    display: none; position: absolute; top: 0; left: 50%; height: 100%;
+    width: 16px; transform: translateX(-50%);
+  }
+  #tape .lead.cut .brk { display: block; }
+  #tape canvas { display: block; image-rendering: pixelated; }
+  #tape .hint { color: #9a978d; font-family: var(--display); letter-spacing: .1em;
+    text-transform: uppercase; font-size: 14px; padding: 14px 10px; }
+  #benchbar {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 12px; padding: 14px 2px 2px;
+  }
+  #benchbar .checkline { margin-top: 0; font-size: 12px; color: var(--dim); }
+  #readout {
+    font-family: var(--mono); font-size: 12px; color: var(--dim);
+    text-align: right;
+  }
+  #readout b { color: var(--accent); font-weight: normal; }
+  #readout .err { color: var(--danger); }
+
+  /* ---- editor ---- */
+  .panel {
+    background: var(--panel); border: 1px solid var(--panel-edge);
+    border-radius: 10px; padding: 18px;
+  }
+  #editorwrap { position: relative; }
+  textarea {
+    width: 100%; min-height: 86px; resize: vertical;
+    background: #131417; color: var(--ink);
+    border: 1px solid var(--panel-edge); border-radius: 6px;
+    font-family: var(--mono); font-size: 17px; line-height: 1.45;
+    padding: 12px 14px; outline: none;
+    font-variant-emoji: text;
+  }
+  textarea:focus { border-color: var(--accent-dark); }
+  textarea::placeholder { color: #4d5058; }
+
+  #completer {
+    position: absolute; z-index: 10; display: none;
+    background: #24262c; border: 1px solid #3a3d45; border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.6);
+    min-width: 230px; overflow: hidden; padding: 4px;
+  }
+  #completer .item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 7px 10px; border-radius: 5px; cursor: pointer;
+    font-family: var(--mono); font-size: 13px; color: var(--dim);
+  }
+  #completer .item img.ch {
+    height: 20px; width: auto; max-width: 72px;
+    background: #fff; border-radius: 3px; padding: 1px 3px;
+  }
+  #completer .item.sel { background: var(--accent); }
+  #completer .item.sel, #completer .item.sel .ch { color: #17181a; }
+
+  /* ---- controls ---- */
+  #controls {
+    display: grid; gap: 16px 22px;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    align-items: end;
+  }
+  .ctl label {
+    display: block; font-family: var(--display); font-size: 12px;
+    letter-spacing: .14em; text-transform: uppercase; color: var(--dim);
+    margin-bottom: 7px;
+  }
+  .ctl label output { color: var(--accent); font-family: var(--mono); letter-spacing: 0; }
+  select, input[type=number] {
+    width: 100%; background: #131417; color: var(--ink);
+    border: 1px solid var(--panel-edge); border-radius: 6px;
+    font-family: var(--mono); font-size: 14px; padding: 8px 10px;
+  }
+  input[type=range] {
+    width: 100%; appearance: none; height: 4px; border-radius: 2px;
+    background: #33363d; outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    appearance: none; width: 16px; height: 16px; border-radius: 50%;
+    background: var(--accent); border: 3px solid #17181a;
+    box-shadow: 0 0 0 1px var(--accent-dark); cursor: pointer;
+  }
+  input[type=range]:disabled::-webkit-slider-thumb { background: #55575c; box-shadow: none; }
+  .checkline { display: flex; gap: 8px; align-items: center; color: var(--dim);
+    font-size: 13px; user-select: none; margin-top: 6px; }
+  .checkline input { accent-color: var(--accent); width: 15px; height: 15px; }
+  .gridrow {
+    display: flex; gap: 7px; align-items: center; margin-top: 8px;
+    font-family: var(--mono); font-size: 12px; color: var(--dim);
+  }
+  .gridrow input[type=number] { width: 64px; }
+  .gridrow select { width: auto; }
+  input:disabled { opacity: .45; }
+  .presets { display: flex; gap: 6px; margin-top: 7px; }
+  .preset {
+    font-family: var(--mono); font-size: 11px; padding: 3px 9px;
+    background: #131417; color: var(--dim);
+    border: 1px solid var(--panel-edge); border-radius: 4px; cursor: pointer;
+  }
+  .preset:hover { border-color: var(--accent-dark); color: var(--ink); }
+  .preset.on { background: var(--accent); color: #17181a; border-color: var(--accent); }
+
+  /* ---- font picker ---- */
+  #fontbtn {
+    width: 100%; display: flex; justify-content: space-between; align-items: center;
+    background: #131417; color: var(--ink);
+    border: 1px solid var(--panel-edge); border-radius: 6px;
+    font-family: var(--mono); font-size: 14px; padding: 8px 10px; cursor: pointer;
+  }
+  #fontbtn:hover { border-color: var(--accent-dark); }
+  #fontbtn .caret { color: var(--dim); margin-left: 8px; }
+  #pickerwrap {
+    position: fixed; inset: 0; z-index: 60;
+    background: rgba(8, 9, 11, .6); backdrop-filter: blur(2px);
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 7vh 18px 18px;
+  }
+  #pickerwrap[hidden] { display: none; }
+  #picker {
+    width: min(780px, 100%); max-height: 82vh;
+    display: flex; flex-direction: column;
+    background: #1b1c20; border: 1px solid var(--panel-edge);
+    border-radius: 12px; box-shadow: 0 22px 60px rgba(0,0,0,.55);
+  }
+  #pickerbar { display: flex; gap: 8px; padding: 14px 14px 8px; }
+  #picksearch {
+    flex: 1; background: #131417; color: var(--ink);
+    border: 1px solid var(--panel-edge); border-radius: 6px;
+    font-family: var(--mono); font-size: 13px; padding: 8px 10px;
+  }
+  #pickshuffle {
+    background: #131417; border: 1px solid var(--panel-edge); border-radius: 6px;
+    font-size: 15px; padding: 0 12px; cursor: pointer;
+  }
+  #pickshuffle:hover { border-color: var(--accent-dark); }
+  #pickchips { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 14px 10px; }
+  .chip {
+    font-family: var(--mono); font-size: 11px; padding: 3px 10px;
+    background: #131417; color: var(--dim);
+    border: 1px solid var(--panel-edge); border-radius: 999px; cursor: pointer;
+  }
+  .chip:hover { border-color: var(--accent-dark); color: var(--ink); }
+  .chip.on { background: var(--accent); color: #17181a; border-color: var(--accent); }
+  #picklist {
+    overflow-y: auto; padding: 2px 14px 12px;
+    display: flex; flex-direction: column; gap: 5px; min-height: 120px;
+  }
+  .tile {
+    display: flex; align-items: center; gap: 14px;
+    padding: 7px 10px; border: 1px solid transparent; border-radius: 8px;
+    cursor: pointer;
+  }
+  .tile:hover { background: #222329; }
+  .tile.sel { border-color: var(--accent); background: #24252b; }
+  .tile canvas { background: #fff; border-radius: 3px; flex: none; }
+  .tile.missing canvas { opacity: .35; }
+  .tile .tmeta { margin-left: auto; text-align: right; min-width: 0; }
+  .tile .tname { display: block; font-family: var(--mono); font-size: 12px; color: var(--ink); white-space: nowrap; }
+  .tile .tsub { display: block; font-size: 11px; color: var(--dim); white-space: nowrap; }
+  .tile .fav { flex: none; cursor: pointer; color: #494b51; font-size: 16px; padding: 2px 4px; }
+  .tile .fav:hover { color: var(--ink); }
+  .tile .fav.on { color: var(--accent); }
+  .tile.action { justify-content: center; color: var(--dim); font-family: var(--mono); font-size: 12px; border: 1px dashed var(--panel-edge); }
+  #pickerhint {
+    padding: 9px 14px; font-family: var(--mono); font-size: 11px;
+    color: var(--dim); border-top: 1px solid var(--panel-edge);
+  }
+
+  /* ---- print bar ---- */
+  #printbar { display: flex; align-items: center; gap: 18px; }
+  #copies { width: 74px; }
+  #printbtn {
+    margin-left: auto;
+    font-family: var(--display); font-size: 19px; letter-spacing: .18em;
+    text-transform: uppercase;
+    background: linear-gradient(180deg, #ffd94f, var(--accent));
+    color: #141517; border: none; border-radius: 8px;
+    padding: 14px 44px; cursor: pointer;
+    box-shadow: 0 4px 0 var(--accent-dark), 0 8px 20px rgba(0,0,0,.45);
+    transition: transform .05s, box-shadow .05s;
+  }
+  #printbtn kbd { color: inherit; opacity: .55; font-size: 13px; margin-left: 10px; letter-spacing: 0; }
+  #printbtn:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--accent-dark); }
+  #printbtn:disabled {
+    background: #3a3d43; color: #6c6f76; box-shadow: none; cursor: not-allowed;
+  }
+  #toast {
+    position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%);
+    background: #24262c; border: 1px solid #3a3d45; border-radius: 8px;
+    font-family: var(--mono); font-size: 13px;
+    padding: 11px 20px; opacity: 0; pointer-events: none;
+    transition: opacity .25s;
+  }
+  #toast.show { opacity: 1; }
+  #toast.ok { border-color: var(--ok); color: var(--ok); }
+  #toast.err { border-color: var(--danger); color: var(--danger); }
+  kbd { font-family: var(--mono); font-size: 11px; color: var(--dim); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Oh, Brother <small id="modelname">P-touch</small></h1>
+  <span id="mode"></span>
+  <div id="status"><span class="dot"></span><span id="statustext">checking…</span></div>
+  <select id="printersel" title="choose a printer" style="display:none"></select>
+</header>
+<div class="hazard"></div>
+
+<main>
+  <section id="bench">
+    <div id="tape">
+      <span class="lead l"></span>
+      <span class="hint">type below — the tape is live</span>
+      <span class="lead r"></span>
+    </div>
+    <div id="benchbar">
+      <label class="checkline" id="elidectl"
+             title="The printer always feeds blank tape before the label (print-head-to-cutter distance). Elided here to keep the preview compact — uncheck to see the margins at true scale.">
+        <input type="checkbox" id="elidelead" checked><span>shorten blank lead</span>
+      </label>
+      <div id="readout">&nbsp;</div>
+    </div>
+  </section>
+
+  <section class="panel" id="editorwrap">
+    <textarea id="text" rows="3" autofocus
+      autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+      data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
+      placeholder="Label text… newline = new line on the label. Type :name for symbols (:warning, :cmd, :ohm …). A line 'code:SN-123' or 'qr:https://…' becomes a barcode / QR block. First line 'grid:5u/6' (Gridfinity units or mm) makes a 6-cell strip — one line per cell."></textarea>
+    <div class="checkline">
+      <input type="checkbox" id="markdown">
+      <span>markdown: **bold** *italic* `mono` ~~strike~~ (\* escapes)</span>
+    </div>
+    <div id="completer"></div>
+  </section>
+
+  <section class="panel">
+    <div id="controls">
+      <div class="ctl">
+        <label>Font</label>
+        <button type="button" id="fontbtn" title="browse fonts">
+          <span id="fontname">…</span><span class="caret">▾</span>
+        </button>
+      </div>
+      <div class="ctl">
+        <label>Size <output id="sizeout">auto</output></label>
+        <input type="range" id="size" min="12" max="128" value="76" disabled>
+        <div class="checkline"><input type="checkbox" id="autosize" checked><span>auto-fit tape</span></div>
+      </div>
+      <div class="ctl">
+        <label>Width <output id="hscaleout">100%</output></label>
+        <input type="range" id="hscale" min="50" max="200" value="100" list="hticks">
+        <datalist id="hticks">
+          <option value="50"></option>
+          <option value="100"></option>
+          <option value="150"></option>
+          <option value="200"></option>
+        </datalist>
+        <div class="presets">
+          <button type="button" class="preset" data-h="50">50%</button>
+          <button type="button" class="preset on" data-h="100">100%</button>
+          <button type="button" class="preset" data-h="150">150%</button>
+        </div>
+      </div>
+      <div class="ctl">
+        <label>Margin <output id="marginout">8 px</output></label>
+        <input type="range" id="margin" min="0" max="48" value="8">
+      </div>
+      <div class="ctl">
+        <label>Grid strip <output id="gridout"></output></label>
+        <div class="checkline" style="margin-top:0">
+          <input type="checkbox" id="gridon"><span>fixed-width cell strip</span>
+        </div>
+        <div class="gridrow" id="gridfields" style="display:none">
+          <input type="number" id="gridwidth" min="0.5" step="0.5" value="5">
+          <select id="gridunit" title="u = Gridfinity pitch, 42 mm">
+            <option value="u" selected>u</option>
+            <option value="mm">mm</option>
+          </select>
+          <span>÷</span>
+          <input type="number" id="gridcells" min="1" max="40" value="6">
+          <span>cells</span>
+        </div>
+      </div>
+      <div class="ctl" id="tapectl" style="display:none">
+        <label>Tape (offline)</label>
+        <select id="tapesel"></select>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" id="printbar">
+    <div class="ctl">
+      <label>Copies</label>
+      <input type="number" id="copies" min="1" max="50" value="1">
+    </div>
+    <div class="ctl" id="marginsctl">
+      <label>Margins</label>
+      <select id="margins">
+        <option value="equal">equal on both sides</option>
+        <option value="save">save tape — trim lead with scissors</option>
+      </select>
+    </div>
+    <div class="checkline"><input type="checkbox" id="chain"><span>chain (no feed between)</span></div>
+    <button id="printbtn" disabled>Print <kbd id="printkbd">⌘⏎</kbd></button>
+  </section>
+</main>
+
+<div id="pickerwrap" hidden>
+  <div id="picker">
+    <div id="pickerbar">
+      <input id="picksearch" type="text" placeholder="Search fonts — name, style, vibe (industrial, retro, friendly…)"
+             autocomplete="off" autocorrect="off" spellcheck="false">
+      <button type="button" id="pickshuffle" title="surprise me">🎲</button>
+    </div>
+    <div id="pickchips"></div>
+    <label class="checkline" id="alllangsctl" style="display:none"
+           title="By default only fonts covering your language's writing system are listed — fonts for other scripts often render labels blank or clipped.">
+      <input type="checkbox" id="alllangs"><span>all languages — include fonts for other writing systems</span>
+    </label>
+    <div id="picklist"></div>
+    <div id="pickerhint">↑↓ try it live &nbsp;·&nbsp; ⏎ keep &nbsp;·&nbsp; esc cancel &nbsp;·&nbsp; ★ favorite</div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="qrcode.js"></script>
+<script src="labelcore.js"></script>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+
+// The manifest (fonts.json) is the single font/symbol catalog in BOTH
+// modes: the server serves the fonts from its cache at fonts/<id>.ttf,
+// a static deploy ships the same files at the same relative URL.
+const FALLBACK_FONT_IDS = ["icons", "noto-symbols-2", "noto-symbols-1", "noto-emoji"];
+
+const state = {
+  mode: null,          // "server" | "usb"
+  transport: null,
+  manifest: null,
+  fonts: [],           // visible manifest fonts: {id, family, category, tags, aliases}
+  connected: false,
+  printerId: "",       // "" = server default (USB first, else first Cube)
+  tapePx: 76, tapeMm: 12,
+  leadMm: 25,          // blank tape fed before the label; refined by status
+  lastCanvas: null,
+};
+
+/* The writing system of the browser's UI language, in the script names
+   the host-font scan reports (hostfonts SCRIPT_PROBES — keep the
+   name set identical). Unlisted languages default to latin. */
+function uiScript() {
+  const lang = (navigator.language || "en").toLowerCase().split("-")[0];
+  return {
+    ru: "cyrillic", uk: "cyrillic", bg: "cyrillic", sr: "cyrillic",
+    be: "cyrillic", mk: "cyrillic", kk: "cyrillic", mn: "cyrillic",
+    el: "greek",
+    ar: "arabic", fa: "arabic", ur: "arabic", ps: "arabic",
+    he: "hebrew", yi: "hebrew",
+    hi: "devanagari", mr: "devanagari", ne: "devanagari",
+    zh: "han", ja: "kana", ko: "hangul", th: "thai",
+  }[lang] || "latin";
+}
+
+// Canvas ignores @font-face fonts that are not loaded yet, so every
+// family is awaited once before it is first drawn with.
+const loadedFamilies = new Set();
+async function ensureFamilies(fams) {
+  const missing = fams.filter(f => !loadedFamilies.has(f));
+  if (!missing.length) return;
+  await Promise.allSettled(missing.map(f => document.fonts.load(`16px "${f}"`)));
+  missing.forEach(f => loadedFamilies.add(f));
+}
+
+function toast(msg, cls) {
+  const t = $("toast");
+  t.textContent = msg; t.className = "show " + cls;
+  clearTimeout(t._h); t._h = setTimeout(() => t.className = "", 3500);
+}
+
+function currentFont() {
+  return state.font || state.fonts[0];
+}
+
+function fallbackFamilies() {
+  const byId = Object.fromEntries(state.manifest.fonts.map(f => [f.id, f]));
+  return FALLBACK_FONT_IDS.filter(id => byId[id]).map(id => byId[id].family);
+}
+
+/* ---------- font selection (persisted) ---------- */
+const FAVS_KEY = "ohbrother.favFonts";
+const RECENTS_KEY = "ohbrother.recentFonts";
+const SEL_KEY = "ohbrother.font";
+const PRINTER_KEY = "ohbrother.printer";
+const ALLLANGS_KEY = "ohbrother.hostAllLangs";
+
+function loadJson(key, dflt) {
+  try { return JSON.parse(localStorage.getItem(key)) ?? dflt; } catch { return dflt; }
+}
+function saveJson(key, v) {
+  try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* private mode */ }
+}
+
+// A selection is either a manifest font entry or {family, host: true}.
+// Host fonts render client-side by family name; printing always sends
+// the rendered bitmap, so the server never needs the host font file.
+function fontKey(f) { return f.host ? "host:" + f.family : f.id; }
+
+function selectionFromKey(key) {
+  if (!key) return null;
+  if (key.startsWith("host:")) {
+    return { family: key.slice(5), host: true, category: "host" };
+  }
+  return state.fonts.find(f => f.id === key) || null;
+}
+
+function applyFont(f, { commit = true } = {}) {
+  if (!f) return;
+  state.font = f;
+  $("fontname").textContent = f.family;
+  syncEditorFont();
+  schedulePreview();
+  if (commit) {
+    saveJson(SEL_KEY, fontKey(f));
+    const rec = [fontKey(f), ...loadJson(RECENTS_KEY, []).filter(k => k !== fontKey(f))];
+    saveJson(RECENTS_KEY, rec.slice(0, 8));
+  }
+}
+
+/* ---------- status / connection ---------- */
+async function refreshStatus() {
+  const el = $("status");
+  if (state.mode === "usb" && !state.transport.connected) {
+    el.classList.remove("on");
+    el.classList.add("action");
+    const ok = LabelCore.WebUsbTransport.supported();
+    $("statustext").textContent = ok
+      ? "printer on? click to connect" : "WebUSB unsupported in this browser";
+    el.title = ok
+      ? "make sure the printer is on and plugged in, then click to open the browser's device picker"
+      : "WebUSB needs a Chromium browser (Chrome, Edge)";
+    $("tapectl").style.display = "";
+    applyOfflineTape();
+    $("printbtn").disabled = true;
+    return;
+  }
+  el.classList.remove("action");
+  let st;
+  try {
+    st = await state.transport.status(state.printerId);
+  } catch (e) {
+    st = { connected: false, error: String(e) };
+  }
+  state.connected = !!st.connected;
+  updatePrinterPicker(st.printers, st.printer_id);
+  if (st.connected) {
+    el.classList.add("on");
+    if (st.model) $("modelname").textContent = st.model;
+    $("statustext").textContent = `${st.tape_mm} mm ${st.media}`;
+    el.title = "click to re-check the tape";
+    state.tapePx = st.tape_px; state.tapeMm = st.tape_mm;
+    if (st.lead_mm) state.leadMm = st.lead_mm;
+    $("tapectl").style.display = "none";
+    updateMarginsControl(st);
+    if (st.errors.length) toast("printer: " + st.errors.join(", "), "err");
+  } else {
+    el.classList.remove("on");
+    $("statustext").textContent = "printer offline — check power & connection";
+    el.title = "P-touch printers auto-power-off; press the power button, then click to re-check";
+    $("tapectl").style.display = "";
+    applyOfflineTape();
+  }
+  $("printbtn").disabled = !st.connected;
+  schedulePreview();
+}
+
+/* Every fed label starts with the printer's head-to-cutter distance
+   of blank tape — a hardware limit, not something the app adds. Show
+   that number for the connected printer, and let "equal" mirror it as
+   the trailing margin. The end-margin control is hardware-verified on
+   both the Cube and the PT-H500 (server mode; standalone WebUSB
+   prints use the printer's default margin). */
+function updateMarginsControl(st) {
+  const sel = $("margins");
+  if (st.lead_mm) {
+    sel.options[0].textContent = `equal on both sides (≈${st.lead_mm} mm)`;
+    $("marginsctl").title =
+      `${st.model || "this printer"} always feeds ≈${st.lead_mm} mm of blank ` +
+      `tape before a label — a hardware limit (print-head to cutter ` +
+      `distance). “Equal” feeds the same after the label; “save tape” ` +
+      `feeds ~2 mm; chained prints skip the lead entirely.`;
+  }
+  const supported = state.mode === "server";
+  sel.disabled = !supported;
+  if (!supported) {
+    $("marginsctl").title =
+      `${st.model || "this printer"} feeds ≈${st.lead_mm || 24.5} mm of blank ` +
+      `tape before a label — a hardware limit. The trailing-margin ` +
+      `choice needs the label server; standalone WebUSB prints use ` +
+      `the printer's default margin.`;
+  }
+}
+
+/* Shown only in server mode with 2+ printers to choose between; on a
+   failed status it keeps its previous options so a dead selection can
+   be switched away from. */
+function updatePrinterPicker(printers, usedId) {
+  const sel = $("printersel");
+  if (state.mode !== "server") { sel.style.display = "none"; return; }
+  if (printers) {
+    sel.innerHTML = "";
+    for (const p of printers) {
+      const o = document.createElement("option");
+      o.value = p.id; o.textContent = p.label;
+      sel.appendChild(o);
+    }
+    if (usedId || state.printerId) sel.value = usedId || state.printerId;
+  }
+  sel.style.display = sel.options.length >= 2 ? "" : "none";
+}
+
+function applyOfflineTape() {
+  state.tapeMm = +$("tapesel").value || 12;
+  state.tapePx = LabelCore.TAPE_PX[state.tapeMm] || 76;
+}
+
+async function onStatusClick() {
+  if (state.mode === "usb" && !state.transport.connected) {
+    try {
+      await state.transport.connect();
+    } catch (e) {
+      toast(String(e), "err");
+      return;
+    }
+  }
+  refreshStatus();
+}
+
+/* ---------- grid strip controls ---------- */
+let defaultPlaceholder = null;
+function gridDirective() {
+  if (!$("gridon").checked) return null;
+  return `grid:${$("gridwidth").value}${$("gridunit").value}/${$("gridcells").value}`;
+}
+function syncGridUI() {
+  const on = $("gridon").checked;
+  $("gridfields").style.display = on ? "" : "none";
+  // margin/width do not apply to a fixed-width strip
+  $("hscale").disabled = on;
+  $("margin").disabled = on;
+  if (defaultPlaceholder === null) defaultPlaceholder = $("text").placeholder;
+  $("text").placeholder = on
+    ? "One line per cell — a blank line leaves that cell empty. :symbols and markdown work inside cells."
+    : defaultPlaceholder;
+  const mm = parseFloat($("gridwidth").value)
+    * ($("gridunit").value === "u" ? 42 : 1);
+  const n = Math.max(1, +$("gridcells").value || 1);
+  $("gridout").textContent = on && mm ? (mm / n).toFixed(1) + " mm/cell" : "";
+}
+for (const id of ["gridwidth", "gridunit", "gridcells"]) {
+  $(id).addEventListener("input", () => { syncGridUI(); schedulePreview(); });
+}
+$("gridon").addEventListener("change", () => { syncGridUI(); schedulePreview(); });
+
+/* ---------- preview ---------- */
+// Blank-lead spans carry a drawing-style break mark (two zigzag lines
+// over a gap) that shows only while the lead is elided.
+const BRK_SVG =
+  `<svg class="brk" viewBox="0 0 16 48" preserveAspectRatio="none">
+    <rect x="4" y="0" width="8" height="48" fill="#17181c"/>
+    <path d="M4 0l3 6-3 6 3 6-3 6 3 6-3 6 3 6-3 6" fill="none" stroke="#968f80" stroke-width="1.5"/>
+    <path d="M12 0l-3 6 3 6-3 6 3 6-3 6 3 6-3 6 3 6" fill="none" stroke="#968f80" stroke-width="1.5"/>
+  </svg>`;
+const LEAD_L = `<span class="lead l">${BRK_SVG}</span>`;
+const LEAD_R = `<span class="lead r">${BRK_SVG}</span>`;
+
+/* The printer feeds state.leadMm of blank tape before the label (a
+   hardware limit) and a mode-dependent amount after (equal mirrors the
+   lead, save-tape ~2 mm, chain none). Show both at true scale, elided
+   behind a break mark when long — the checkbox turns elision off. */
+function sizeLeads(dispScale) {
+  const pxPerMm = LabelCore.DPI / 25.4 * dispScale / 2;
+  const trailMm = $("chain").checked ? 0
+    : $("margins").value === "save" ? 2 : state.leadMm;
+  for (const [sel, mm] of [[".lead.l", state.leadMm], [".lead.r", trailMm]]) {
+    const el = $("tape").querySelector(sel);
+    if (!el) continue;
+    const w = Math.round(mm * pxPerMm);
+    const cut = $("elidelead").checked && w > 72;
+    el.style.display = w ? "" : "none";
+    el.style.width = (cut ? 44 : w) + "px";
+    el.classList.toggle("cut", cut);
+  }
+}
+
+let previewTimer = null;
+function schedulePreview() {
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(renderPreview, 150);
+}
+
+function renderParams() {
+  return {
+    heightPx: state.tapePx,
+    font: currentFont(),
+    fontSize: $("autosize").checked ? null : +$("size").value,
+    hscale: +$("hscale").value / 100,
+    marginPx: +$("margin").value,
+    markdown: $("markdown").checked,
+  };
+}
+
+async function renderPreview() {
+  const font = currentFont();
+  if (font) await ensureFamilies([font.family, ...fallbackFamilies()]);
+  const tape = $("tape");
+  const dir = gridDirective();
+  if (!dir && !$("text").value.trim()) {
+    tape.innerHTML = `${LEAD_L}<span class="hint">type below — the tape is live</span>${LEAD_R}`;
+    $("readout").innerHTML = "&nbsp;";
+    state.lastCanvas = null;
+    return;
+  }
+  const text = dir ? dir + "\n" + $("text").value : $("text").value;
+  let canvas;
+  try {
+    canvas = LabelCore.renderLabel(text, renderParams());
+  } catch (e) {
+    $("readout").innerHTML = `<span class="err">${e.message || e}</span>`;
+    state.lastCanvas = null;
+    return;
+  }
+  state.lastCanvas = canvas;
+  const dispScale = Math.max(2, Math.round(8 * state.tapeMm / canvas.height));
+  canvas.style.height = (canvas.height * dispScale / 2) + "px";
+  canvas.style.width = (canvas.width * dispScale / 2) + "px";
+  tape.innerHTML = LEAD_L + LEAD_R;
+  tape.insertBefore(canvas, tape.querySelector(".lead.r"));
+  sizeLeads(dispScale);
+  const mm = Math.round(canvas.width / LabelCore.DPI * 25.4 * 10) / 10;
+  $("readout").innerHTML =
+    `<b>${mm} mm</b> · ${canvas.width}×${canvas.height} px · ${state.tapeMm} mm tape`;
+}
+
+/* ---------- symbol completer ---------- */
+const comp = { open: false, items: [], sel: 0, start: 0 };
+function closeCompleter() { comp.open = false; $("completer").style.display = "none"; }
+
+function glyphImage(char) {
+  try {
+    const c = LabelCore.renderLabel(char, {
+      heightPx: 24, font: currentFont(), marginPx: 2,
+    });
+    return c.toDataURL();
+  } catch { return ""; }
+}
+
+function updateCompleter() {
+  const ta = $("text");
+  const upToCaret = ta.value.slice(0, ta.selectionStart);
+  // A qr:/code: directive line is data, not a symbol search — the
+  // completer must stay out of the way there.
+  const line = upToCaret.slice(upToCaret.lastIndexOf("\n") + 1);
+  if (/^(qr|code):/i.test(line)) { closeCompleter(); return; }
+  const m = /:([a-z0-9-]*)$/i.exec(upToCaret);
+  if (!m) { closeCompleter(); return; }
+  const q = m[1].toLowerCase();
+  const starts = [], contains = [];
+  for (const s of LabelCore.SYMBOLS) {
+    if (s.name.startsWith(q)) starts.push(s);
+    else if (s.name.includes(q) || s.keywords.includes(q)) contains.push(s);
+  }
+  const items = starts.concat(contains).slice(0, 8);
+  if (!items.length) { closeCompleter(); return; }
+  comp.open = true; comp.items = items; comp.sel = 0;
+  comp.start = ta.selectionStart - m[0].length;
+  const c = $("completer");
+  c.innerHTML = items.map((s, i) =>
+    `<div class="item${i === 0 ? " sel" : ""}" data-i="${i}">
+       <img class="ch" src="${glyphImage(s.char)}" alt="${s.char}">:${s.name}</div>`).join("");
+  c.style.display = "block";
+  c.style.left = "18px";
+  c.style.top = (ta.offsetTop + ta.offsetHeight + 6) + "px";
+  c.querySelectorAll(".item").forEach(el => {
+    el.onmousedown = e => { e.preventDefault(); pickSymbol(+el.dataset.i); };
+  });
+}
+
+function pickSymbol(i) {
+  const ta = $("text");
+  const s = comp.items[i];
+  ta.setRangeText(s.char, comp.start, ta.selectionStart, "end");
+  closeCompleter();
+  ta.focus();
+  schedulePreview();
+}
+
+$("text").addEventListener("keydown", e => {
+  if (comp.open) {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      comp.sel = (comp.sel + (e.key === "ArrowDown" ? 1 : comp.items.length - 1)) % comp.items.length;
+      $("completer").querySelectorAll(".item").forEach((el, i) =>
+        el.classList.toggle("sel", i === comp.sel));
+      return;
+    }
+    if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); pickSymbol(comp.sel); return; }
+    if (e.key === "Escape") { closeCompleter(); return; }
+  }
+  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); doPrint(); }
+});
+$("text").addEventListener("input", () => { updateCompleter(); schedulePreview(); });
+$("text").addEventListener("blur", () => setTimeout(closeCompleter, 150));
+
+/* ---------- controls ---------- */
+function syncEditorFont() {
+  const f = currentFont();
+  if (!f) return;
+  const fams = [f.family, ...fallbackFamilies()].map(n => `"${n}"`);
+  $("text").style.fontFamily = fams.join(", ");
+}
+
+/* ---------- font picker ---------- */
+const picker = { open: false, items: [], sel: -1, before: null, chip: "all" };
+
+function hostCandidates() {
+  const known = new Set(state.fonts.map(f => f.family.toLowerCase()));
+  const script = uiScript();
+  return (state.hostFonts || [])
+    .filter(h => !known.has(h.family.toLowerCase()))
+    // Fonts for other writing systems mostly render labels blank or
+    // clipped; hide them unless asked. Entries without script data
+    // (queryLocalFonts has no cmap access) always stay.
+    .filter(h => $("alllangs").checked || !h.scripts || h.scripts.includes(script))
+    .map(h => ({ family: h.family, host: true, category: "host" }));
+}
+
+function pickerCandidates() {
+  const favs = new Set(loadJson(FAVS_KEY, []));
+  const q = $("picksearch").value.trim().toLowerCase();
+  let list;
+  if (picker.chip === "host") list = hostCandidates();
+  else if (picker.chip === "favorites") {
+    list = state.fonts.concat(hostCandidates()).filter(f => favs.has(fontKey(f)));
+  } else if (picker.chip === "all") list = state.fonts.concat(hostCandidates());
+  else list = state.fonts.filter(f => f.category === picker.chip);
+  if (q) {
+    list = list.filter(f =>
+      f.family.toLowerCase().includes(q)
+      || (f.id || "").includes(q)
+      || (f.category || "").includes(q)
+      || (f.tags || []).some(t => t.includes(q))
+      || (f.aliases || []).some(a => a.includes(q)));
+  } else if (picker.chip === "all") {
+    // favorites first, then recents, then the curated set, host fonts last
+    const rec = loadJson(RECENTS_KEY, []);
+    const rank = f => favs.has(fontKey(f)) ? 0
+      : rec.includes(fontKey(f)) ? 1 : f.host ? 3 : 2;
+    list = list.slice().sort((a, b) => rank(a) - rank(b));
+  }
+  return list;
+}
+
+function tileSample(f) {
+  const line = $("text").value.split("\n")
+    .find(l => l.trim() && !/^(qr|code|grid):/i.test(l.trim()));
+  if (line) return line.trim();
+  const samples = (state.manifest && state.manifest.samples) || {};
+  return samples[f.category] || samples.default || "THE QUICK BROWN FOX";
+}
+
+let tileObserver = null;
+
+async function drawTile(div) {
+  const f = picker.items[+div.dataset.i];
+  if (!f) return;
+  if (!f.host) await ensureFamilies([f.family]);
+  const missing = !f.host && !document.fonts.check(`16px "${f.family}"`);
+  div.classList.toggle("missing", missing);
+  div.title = missing ? `${f.family}: font file not available (offline?)` : "";
+  const c = div.querySelector("canvas");
+  try {
+    const r = LabelCore.renderLabel(tileSample(f), { heightPx: 44, font: f, marginPx: 6 });
+    c.width = r.width; c.height = r.height;
+    c.getContext("2d").drawImage(r, 0, 0);
+    c.style.height = "26px";
+    c.style.width = Math.min(420, r.width * 26 / 44) + "px";
+  } catch { /* tile stays blank; the name column still identifies it */ }
+}
+
+function setPickerSel(i, { scroll = true } = {}) {
+  picker.sel = i;
+  document.querySelectorAll("#picklist .tile").forEach(el =>
+    el.classList.toggle("sel", +el.dataset.i === i));
+  const el = document.querySelector(`#picklist .tile[data-i="${i}"]`);
+  if (el && scroll) el.scrollIntoView({ block: "nearest" });
+  if (picker.items[i]) applyFont(picker.items[i], { commit: false });
+}
+
+function toggleFav(key) {
+  const favs = loadJson(FAVS_KEY, []);
+  const next = favs.includes(key) ? favs.filter(k => k !== key) : [...favs, key];
+  saveJson(FAVS_KEY, next);
+}
+
+function renderPickerList() {
+  $("alllangsctl").style.display = picker.chip === "host" ? "" : "none";
+  const listEl = $("picklist");
+  picker.items = pickerCandidates();
+  if (tileObserver) tileObserver.disconnect();
+  tileObserver = new IntersectionObserver(entries => {
+    for (const e of entries) {
+      if (e.isIntersecting) { drawTile(e.target); tileObserver.unobserve(e.target); }
+    }
+  }, { root: listEl, rootMargin: "300px" });
+  const favs = new Set(loadJson(FAVS_KEY, []));
+  listEl.innerHTML = "";
+  if (picker.chip === "host" && !picker.items.length && "queryLocalFonts" in window) {
+    const btn = document.createElement("div");
+    btn.className = "tile action";
+    btn.textContent = "Show this computer's fonts (browser will ask permission)";
+    btn.onmousedown = async e => {
+      e.preventDefault();
+      try {
+        const local = await window.queryLocalFonts();
+        // Leading-dot families are hidden system fonts CSS can't use.
+        const fams = new Map(local.filter(x => !x.family.startsWith("."))
+          .map(x => [x.family, { family: x.family }]));
+        state.hostFonts = [...fams.values()];
+        renderPickerList();
+      } catch (err) { toast("local fonts: " + (err.message || err), "err"); }
+    };
+    listEl.append(btn);
+    return;
+  }
+  if (!picker.items.length) {
+    const empty = document.createElement("div");
+    empty.className = "tile action";
+    empty.textContent = picker.chip === "favorites"
+      ? "no favorites yet — click a ★ to add one" : "no fonts match";
+    listEl.append(empty);
+    return;
+  }
+  picker.items.forEach((f, i) => {
+    const div = document.createElement("div");
+    div.className = "tile" + (i === picker.sel ? " sel" : "");
+    div.dataset.i = i;
+    const alias = (f.aliases || [])[0];
+    const sub = f.host ? "installed on this computer"
+      : f.category + (alias ? ` · ≈ ${alias}` : "");
+    div.innerHTML = `<canvas width="1" height="1"></canvas>
+      <div class="tmeta"><span class="tname"></span><span class="tsub"></span></div>
+      <span class="fav${favs.has(fontKey(f)) ? " on" : ""}" title="favorite">★</span>`;
+    div.querySelector(".tname").textContent = f.family;
+    div.querySelector(".tsub").textContent = sub;
+    div.onmousedown = e => {
+      e.preventDefault();
+      if (e.target.classList.contains("fav")) {
+        toggleFav(fontKey(f));
+        e.target.classList.toggle("on");
+        return;
+      }
+      setPickerSel(i, { scroll: false });
+      closePicker(true);
+    };
+    tileObserver.observe(div);
+    listEl.append(div);
+  });
+}
+
+function renderPickerChips() {
+  const cats = [...new Set(state.fonts.map(f => f.category))];
+  const chips = ["all", ...cats, "favorites"];
+  if (hostCandidates().length || "queryLocalFonts" in window || state.mode === "server") {
+    chips.push("host");
+  }
+  const el = $("pickchips");
+  el.innerHTML = "";
+  for (const c of chips) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "chip" + (picker.chip === c ? " on" : "");
+    b.textContent = c === "host" ? "this computer" : c;
+    b.onmousedown = e => {
+      e.preventDefault();
+      picker.chip = c;
+      renderPickerChips();
+      renderPickerList();
+    };
+    el.append(b);
+  }
+}
+
+function openPicker() {
+  picker.open = true;
+  picker.before = currentFont();
+  picker.chip = "all";
+  $("picksearch").value = "";
+  $("pickerwrap").hidden = false;
+  renderPickerChips();
+  renderPickerList();
+  const cur = picker.items.findIndex(f => fontKey(f) === fontKey(currentFont()));
+  if (cur >= 0) setPickerSel(cur);
+  $("picksearch").focus();
+}
+
+function closePicker(commit) {
+  if (!picker.open) return;
+  picker.open = false;
+  $("pickerwrap").hidden = true;
+  // Enter with nothing scrubbed picks the top search hit.
+  const chosen = picker.items[picker.sel]
+    || (picker.sel < 0 ? picker.items[0] : null);
+  if (commit && chosen) applyFont(chosen);
+  else applyFont(picker.before, { commit: false });
+}
+
+$("fontbtn").addEventListener("click", openPicker);
+$("picksearch").addEventListener("input", () => { picker.sel = -1; renderPickerList(); });
+$("pickshuffle").addEventListener("click", () => {
+  if (!picker.items.length) return;
+  let i = Math.floor(Math.random() * picker.items.length);
+  if (picker.items.length > 1 && i === picker.sel) i = (i + 1) % picker.items.length;
+  setPickerSel(i);
+});
+$("pickerwrap").addEventListener("mousedown", e => {
+  if (e.target === $("pickerwrap")) closePicker(false);
+});
+document.addEventListener("keydown", e => {
+  if (!picker.open) return;
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    if (!picker.items.length) return;
+    const n = picker.items.length;
+    const next = picker.sel < 0 ? 0
+      : (picker.sel + (e.key === "ArrowDown" ? 1 : n - 1)) % n;
+    setPickerSel(next);
+  } else if (e.key === "Enter") {
+    e.preventDefault(); closePicker(true);
+  } else if (e.key === "Escape") {
+    e.preventDefault(); closePicker(false);
+  }
+});
+$("autosize").addEventListener("change", () => {
+  $("size").disabled = $("autosize").checked;
+  $("sizeout").textContent = $("autosize").checked ? "auto" : $("size").value + " px";
+  schedulePreview();
+});
+$("size").addEventListener("input", () => {
+  $("sizeout").textContent = $("size").value + " px"; schedulePreview();
+});
+function syncHscaleUI() {
+  $("hscaleout").textContent = $("hscale").value + "%";
+  document.querySelectorAll(".preset").forEach(b =>
+    b.classList.toggle("on", b.dataset.h === $("hscale").value));
+}
+$("hscale").addEventListener("input", () => { syncHscaleUI(); schedulePreview(); });
+document.querySelectorAll(".preset").forEach(b => b.addEventListener("click", () => {
+  $("hscale").value = b.dataset.h; syncHscaleUI(); schedulePreview();
+}));
+$("margin").addEventListener("input", () => {
+  $("marginout").textContent = $("margin").value + " px"; schedulePreview();
+});
+$("markdown").addEventListener("change", schedulePreview);
+// These change only the blank-lead display, not the label bitmap, but
+// re-rendering the preview is cheap and keeps one code path.
+for (const id of ["margins", "chain", "elidelead"]) {
+  $(id).addEventListener("change", schedulePreview);
+}
+$("alllangs").checked = loadJson(ALLLANGS_KEY, false);
+$("alllangs").addEventListener("change", () => {
+  saveJson(ALLLANGS_KEY, $("alllangs").checked);
+  renderPickerList();
+});
+if (!/Mac/i.test(navigator.platform)) $("printkbd").textContent = "Ctrl+⏎";
+$("tapesel").addEventListener("change", () => { applyOfflineTape(); schedulePreview(); });
+$("status").addEventListener("click", onStatusClick);
+$("printersel").addEventListener("change", () => {
+  state.printerId = $("printersel").value;
+  saveJson(PRINTER_KEY, state.printerId);
+  refreshStatus();
+});
+
+/* ---------- print ---------- */
+async function doPrint() {
+  if ($("printbtn").disabled || !state.lastCanvas) return;
+  $("printbtn").disabled = true;
+  try {
+    const data = await state.transport.print(state.lastCanvas, {
+      copies: +$("copies").value, chain: $("chain").checked,
+      save_tape: $("margins").value === "save",
+      printer: state.printerId,
+    });
+    toast(`✓ printed ${data.mm} mm` + (data.copies > 1 ? ` × ${data.copies}` : ""), "ok");
+  } catch (e) {
+    toast(e.message || String(e), "err");
+  } finally {
+    $("printbtn").disabled = !state.connected;
+  }
+}
+$("printbtn").addEventListener("click", doPrint);
+
+/* ---------- boot ---------- */
+(async function boot() {
+  try {
+    state.manifest = await (await fetch("fonts.json")).json();
+  } catch (e) {
+    toast("fonts.json failed to load: " + e, "err");
+    state.manifest = { fonts: [], symbols: [], samples: {}, default_font: "" };
+  }
+  state.fonts = state.manifest.fonts.filter(f => !f.hidden);
+  LabelCore.configure({
+    symbols: state.manifest.symbols,
+    fallbackFamilies: fallbackFamilies(),
+  });
+  // One @font-face per manifest font. The server serves fonts/<id>.ttf
+  // from its cache; a static deploy ships the files at the same URL.
+  const st = document.createElement("style");
+  st.textContent = state.manifest.fonts.map(f =>
+    `@font-face { font-family: "${f.family}"; src: url("fonts/${f.id}.ttf"); font-display: swap; }`
+  ).join("\n");
+  document.head.append(st);
+
+  const meta = await LabelCore.ServerTransport.probe();
+  if (meta) {
+    state.mode = "server";
+    state.transport = new LabelCore.ServerTransport();
+    state.hostFonts = meta.host_fonts || [];
+    state.printerId = loadJson(PRINTER_KEY, "");
+  } else {
+    state.mode = "usb";
+    state.transport = new LabelCore.WebUsbTransport();
+    state.hostFonts = [];
+  }
+  $("mode").textContent = state.mode === "server" ? "server" : "webusb";
+  const saved = selectionFromKey(loadJson(SEL_KEY, null));
+  const dflt = state.fonts.find(f => f.id === state.manifest.default_font);
+  applyFont(saved || dflt || state.fonts[0] || { family: "sans-serif" },
+            { commit: false });
+  const tsel = $("tapesel");
+  for (const [mm, px] of Object.entries(LabelCore.TAPE_PX)) {
+    const o = document.createElement("option");
+    o.value = mm; o.textContent = `${mm} mm (${px} px)`;
+    if (+mm === 12) o.selected = true;
+    tsel.append(o);
+  }
+  await refreshStatus();
+  setInterval(() => {
+    if (state.mode === "server" || state.transport.connected) refreshStatus();
+  }, 10000);
+})();
+</script>
+</body>
+</html>

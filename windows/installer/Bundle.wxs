@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: 2026 Curtis Galloway
+SPDX-License-Identifier: Apache-2.0
+
+Oh Brother setup bundle (WiX v7 / Burn). Built by windows\build.ps1 bundle.
+Wraps the per-user MSI and chains the Microsoft Edge WebView2 Evergreen
+Bootstrapper, which the wry shell needs at run time. Win11 and updated
+Win10 ship WebView2 already, so the chain step is skipped on almost every
+machine (the two registry searches below detect it); when it does run it
+needs internet access and elevates for a per-machine runtime install.
+
+This is the artifact for the "download from the releases page" path.
+winget distributes the bare MSI instead (see the installer plan doc).
+
+Preprocessor variables (all passed by build.ps1):
+  Version               bundle version (same as the MSI's)
+  Msi                   path to the built OhBrother .msi
+  WindowsDir            the windows\ directory of the repo (icon)
+  WebView2Bootstrapper  path to MicrosoftEdgeWebView2Setup.exe
+                        (build.ps1 downloads it; ~2 MB, compressed in)
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+  <Bundle Name="Oh Brother"
+          Manufacturer="Curtis Galloway"
+          Version="$(var.Version)"
+          UpgradeCode="EAADD724-5F7C-4B78-AA73-5DCD3C8CD849"
+          IconSourceFile="$(var.WindowsDir)\AppIcon.ico">
+
+    <BootstrapperApplication>
+      <bal:WixStandardBootstrapperApplication
+          Theme="hyperlinkLicense"
+          LicenseUrl="https://www.apache.org/licenses/LICENSE-2.0" />
+    </BootstrapperApplication>
+
+    <!-- WebView2 Evergreen runtime detection: per-machine then per-user.
+         {F3017226-...} is the WebView2 runtime's EdgeUpdate client id. -->
+    <util:RegistrySearch Id="srchWebView2Machine"
+                         Root="HKLM"
+                         Key="SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
+                         Value="pv"
+                         Variable="WebView2Machine" />
+    <util:RegistrySearch Id="srchWebView2User"
+                         Root="HKCU"
+                         Key="Software\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
+                         Value="pv"
+                         Variable="WebView2User" />
+
+    <Chain>
+      <ExePackage Id="WebView2Runtime"
+                  DisplayName="Microsoft Edge WebView2 Runtime"
+                  SourceFile="$(var.WebView2Bootstrapper)"
+                  Compressed="yes"
+                  PerMachine="yes"
+                  Permanent="yes"
+                  Vital="yes"
+                  DetectCondition="WebView2Machine OR WebView2User"
+                  InstallArguments="/silent /install" />
+      <MsiPackage Id="OhBrotherMsi"
+                  SourceFile="$(var.Msi)"
+                  Visible="no" />
+    </Chain>
+  </Bundle>
+</Wix>

@@ -1,0 +1,146 @@
+Independent verification of pt-raster-h500-spec-draft.md
+=========================================================
+Date:      2026-08-15
+Verifier:  independent agent (did not author the spec; verdict-only pass,
+           no edits made to the spec draft)
+Spec:      scratchpad pt-raster-h500-spec-draft.md (737 lines, sha256 below)
+Extraction: tool-results/toolu_01GbsoRMyhQWhn1q9SBHRd2b.txt (55,718 bytes,
+           single-line PDF text extraction; session-scoped, untracked)
+Sidecar:   docs/provenance/pt-raster-h500-map.txt
+
+VERDICT: PASS on all five checks.
+
+---------------------------------------------------------------------------
+CHECK 1 — RE-EXPRESSION (license gate)
+---------------------------------------------------------------------------
+Method (mechanical, scripted):
+  a) Normalized both files (lowercase, non-alphanumerics -> single space)
+     and computed word-shingle overlap at n = 6, 7, 8, 10 over every unique
+     shingle in the spec (5,913 unique 6-grams).
+  b) Extended every matching 6-gram to find the longest common word run.
+  c) Grepped 22 distinctive 6+-word prose phrases chosen from the spec
+     (normalized fixed-string membership test against the extraction),
+     exceeding the required 15. Command names / bare hex tables excluded
+     from the phrase picks.
+
+Results:
+  - Shingle overlap: 29/5913 at n=6, 7 at n=7, 3 at n=8, 0 at n=10.
+  - Longest common word run: 9 words — the databook's own title
+    ("...command reference pt h500 p700 e500 version 1 11"), i.e. the
+    citation itself. Acceptable by definition.
+  - Phrase greps: 0/22 spec prose phrases found in the extraction.
+    Phrases tested (spec line refs): L69-70 media-check sentence, L74-76
+    concurrent-printing sentence, L85-86 no-commands rule, L87-88
+    unsolicited-status sentence, L92-93 early-completion sentence, L96
+    error-clears-data, L97-98 resend rule, L101-102 cooling interleave,
+    L107-108 Cube abort, L136-137 invalidate flush, L232-233 phase-20 row,
+    L266 mode stickiness, L272-273 ESC i z flag intro, L323-325 special-
+    tape bit, L352-353 PackBits run rule, L359-360 all-literal fallback,
+    L378-379 line-buffer expansion, L379-380 zero-fill rule, L442-443
+    minimum-feed sentence, L443-444 24.5 mm outcome, L478 MSB pixel order,
+    L486 centered-window sentence. All absent.
+
+  Residual matches, each inspected in context and judged acceptable:
+  - Document title (citation; the 9-word run above).
+  - Command mnemonics + canonical names ("esc i s status information
+    request" etc.) — unavoidable technical terms.
+  - n=8 "a page that is not the last page" (spec L403-404, FF command):
+    the extraction's sentence and the spec's sentence are differently
+    constructed; the shared span is the bare functional fact of when FF is
+    used. Not a transplanted sentence.
+  - "last nine digits of the printer" (spec L734): six-word factual
+    fragment about the USB serial string; near-unavoidable phrasing of the
+    fact; surrounding sentences differ.
+  - "with no precut unrelated to driver" (spec L426-431): the spec
+    presents this as a short quoted phrase from a garbled table row, in
+    quotation marks, with a [databook §2.3.3] citation and an explicit
+    unresolved flag — within the allowed short-quote-with-citation carve-out.
+  - PackBits worked-example bytes (spec L367-371) and per-tape pin-count
+    rows (spec L488-509): hex encodings and numeric table values, i.e.
+    facts. The explanatory prose around them is the spec's own (confirmed
+    by phrase greps L352-353, L359-360 absent).
+  - Table layouts: the spec's tables use its own column structures
+    (e.g. Offset/Size/Field/Value for the status block; the combined
+    Tape/Left/Print/Right/Bytes-per-line raster table). The extraction
+    presents these regions as garbled linear text runs; no table is
+    reproduced as the PDF presents it. Numeric contents are facts.
+  Optional (non-blocking) hardening note: the PackBits example reuses the
+  databook's illustrative byte values; swapping in freshly invented example
+  bytes would remove even that trace. Not required — hex encodings are
+  within the allowed fact category.
+
+CONCLUSION: no transplanted prose passages, no reproduced layouts. PASS.
+
+---------------------------------------------------------------------------
+CHECK 2 — PROVENANCE TAGGING
+---------------------------------------------------------------------------
+Full read of all 10 sections. Every stated protocol fact carries
+[databook §N.N] / [databook p./App.] / [hardware-verified] / [unknown —
+spec-gap candidate]. Notable:
+  - §9.1 lists eight extraction ambiguities explicitly (margin table
+    scramble, cooling codes, ESC i K bit 7 phrasing, error-2 bit 0
+    truncation, table (9)/(10) numbering, split-media interleave,
+    hardware-settings field, flow-chart numbering gap) — flagged, not
+    silently guessed; §9.5 carries an unchecked verification checklist.
+  - §9.4 flags two repo-vs-databook conflicts (tape_px values, error-bit
+    tables) as unresolved rather than picking a winner.
+  - Cube-only facts are consistently [hardware-verified]-only, with the
+    §2 statement that the Cube's own databook is not a source here.
+  - §8 target-mapping facts are repo facts cited by file:line (correct
+    tagging regime for that section).
+No untagged protocol fact found. PASS.
+
+---------------------------------------------------------------------------
+CHECK 3 — STRUCTURE + REPO CITATION SPOT-CHECKS
+---------------------------------------------------------------------------
+Organization is functional, not a PDF mirror: usage notice (§1), scope
+(§2), references (§3), lifecycle (§4), command reference (§5), geometry
+(§6), prescribed sequence (§7), target mapping (§8), gotchas/confidence
+(§9), USB identity (§10). The databook's chapter numbering is referenced
+only inside citation tags.
+
+Citation spot-checks against the repo (all verified, > the required 3):
+  1. protocol.py:120-124 confirm_print field + Cube-abort comment — MATCH.
+  2. protocol.py:417-436 status(): drain 419, 100x00+ESC@ 420, ESC i a
+     gated on needs_print_info 421-422, ESC i S 423, 32-byte parse with
+     0x80/0x20 validation 424-436 — MATCH.
+  3. protocol.py:504-508 H500 else-branch (4D 02, 1B 69 52 01, optional
+     1B 69 4D 40), 527-529 0x47-framed raster, 532 0x0C/0x1A — MATCH.
+  4. protocol.py:129 tape_px {4:24, 6:32, 9:52, 12:76, 18:120, 24:128} —
+     MATCH (the §9.4 discrepancy claim is stated accurately).
+  5. tests/test_protocol.py lines 103/123/134/154 and
+     rust/pt-protocol/src/tests.rs lines 122/143/155/184 — all four names
+     at the cited lines in both files — MATCH.
+  6. rust lib.rs: ModelSpec statics 106-120 (cited 107-118, within),
+     status writes 243-246, write_print_info at 267, print at 313, 0x47
+     framing at 351, print command at 361 — MATCH.
+  7. AGENTS.md lines 124-125 contain the quoted "end-margin control
+     (ESC i d) is wired for the Cube only — the PT-H500 path never sends
+     it" loose-end — MATCH.
+PASS.
+
+---------------------------------------------------------------------------
+CHECK 4 — NO THIRD-PARTY-SOURCE AUTHORITY
+---------------------------------------------------------------------------
+ptouch-print, printer-driver-ptouch, and Ircama's scripts appear only in
+the §1 prohibition (spec L21-23) and the §9.5 attestation of
+non-consultation (L713-715); the provenance sidecar repeats the same.
+No protocol fact anywhere in the spec is attributed to any third-party
+driver; every fact tag resolves to the databook, this repo's AGENTS.md /
+protocol.py, or an explicit unknown. The spec contains no code (only byte
+sequences and encodings). PASS.
+
+---------------------------------------------------------------------------
+CHECK 5 — USAGE NOTICE
+---------------------------------------------------------------------------
+§1 "Usage notice (read this first)" (spec L8-28) is the first body section
+and contains all four required directives: (a) do not paste databook
+text/tables/diagrams into the repo (L17-19); (b) cite this document, not
+the PDF (L20); (c) do not consult GPL driver sources for protocol facts
+(L21-23); (d) file gaps in docs/spec-gaps/pt-raster.md with the
+prescribed entry format and TODO(spec-gap) code marker (L24-28). PASS.
+
+---------------------------------------------------------------------------
+File hashes at verification time (sha256):
+  spec draft:  a9fcfad8632f6294f59c6f0f5b1895c5ccbb5bf1aea419c047dd6f03900dea42
+  extraction:  e6e8193b68b1e550321078c8ce14d2079d5b3075dd2c2ca01f634a5d684d0715

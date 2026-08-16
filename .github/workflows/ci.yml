@@ -1,0 +1,91 @@
+# SPDX-FileCopyrightText: 2026 Curtis Galloway
+# SPDX-License-Identifier: Apache-2.0
+#
+# Validation for pull requests and pushes to main. Enforces exactly the
+# convention AGENTS.md already states: cargo fmt + cargo clippy
+# --all-targets clean, cargo test and node tests/labelcore_test.js green.
+#
+# Until this existed, nothing ran on a pull request at all — the two
+# release workflows are tag-triggered, so an outside contribution (or a
+# Dependabot bump from .github/dependabot.yml) merged with zero checks.
+#
+# Platform choice: macOS and Windows only, the two targets that actually
+# ship. A Linux job would drag in the GTK/webkit2gtk stack that tao, wry
+# and muda pull in there — a large build for a platform with no release
+# artifact, and the source of the one dependency advisory this project
+# cannot act on.
+#
+# No third-party actions beyond the three the release workflows already
+# use; node is preinstalled on the runners, so the JS test needs no setup
+# step and this file adds no new supply-chain surface.
+
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# A force-push to a PR branch makes the in-flight run irrelevant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Formatting does not compile anything, so it does not need a platform
+  # with the native toolchain — one cheap Linux job covers it.
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: cargo fmt --check
+        run: cargo fmt --all --manifest-path rust/Cargo.toml --check
+
+  test:
+    strategy:
+      fail-fast: false # a Windows-only break should not hide a macOS one
+      matrix:
+        os: [macos-15, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      # -D warnings makes "clean" mean clean, matching what AGENTS.md
+      # asks of a human before they commit.
+      - name: cargo clippy
+        run: cargo clippy --all-targets --manifest-path rust/Cargo.toml -- -D warnings
+
+      - name: cargo test
+        run: cargo test --manifest-path rust/Cargo.toml
+
+  js:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: labelcore tests
+        run: node tests/labelcore_test.js
+
+  # The release pipeline lives in these scripts; a syntax error in one
+  # only shows up at tag time, when it is most expensive.
+  scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: shellcheck
+        run: shellcheck -s sh macos/build.sh macos/notarize.sh

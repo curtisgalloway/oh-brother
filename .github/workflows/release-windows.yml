@@ -1,0 +1,214 @@
+# SPDX-FileCopyrightText: 2026 Curtis Galloway
+# SPDX-License-Identifier: Apache-2.0
+#
+# Windows release pipeline: tag vX.Y.Z -> build workspace -> MSI ->
+# (optionally sign via SignPath) -> Burn bundle -> GitHub Release ->
+# winget-pkgs update PR.
+#
+# Signing is OFF until SignPath onboarding is done (see
+# windows/INSTALLER-PLAN.md). To turn it on, define in the repo:
+#   secrets.SIGNPATH_API_TOKEN       (SignPath CI user token)
+#   vars.SIGNPATH_ORGANIZATION_ID    (from the SignPath dashboard)
+# and make project-slug / signing-policy-slug below match the SignPath
+# project. While unset, the workflow ships unsigned artifacts.
+# Check SignPath's action docs when onboarding — input names here
+# (github-artifact-id etc.) follow v1.2 and may drift.
+#
+# winget publishing similarly waits on secrets.WINGET_TOKEN (a classic
+# PAT with public_repo scope; winget-releaser uses it to fork/PR
+# microsoft/winget-pkgs). The FIRST version must be submitted by hand
+# (wingetcreate or komac) to create the package; the action only
+# updates existing packages.
+
+name: release-windows
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Build workspace
+        run: cargo build --release --manifest-path rust\Cargo.toml
+
+      - name: Install WiX v7 CLI
+        run: dotnet tool install --global wix
+
+      # WiX v7 refuses to run until its Open Source Maintenance Fee
+      # EULA is accepted (error WIX7015, found on first real build).
+      # oh-brother is fee-exempt — no revenue; analysis in
+      # windows/INSTALLER-PLAN.md.
+      - name: Accept WiX OSMF EULA
+        run: wix eula accept wix7
+
+      - name: Build MSI
+        run: windows\build.ps1 msi -NoCargo
+
+      # ---- MSI signing (steps skipped until SignPath is configured) ----
+      - name: Upload unsigned MSI for signing
+        id: unsigned-msi
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: unsigned-msi
+          path: windows/build/*.msi
+
+      - name: Sign MSI (SignPath)
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        uses: signpath/github-action-submit-signing-request@v1.2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: oh-brother
+          signing-policy-slug: release-signing
+          github-artifact-id: ${{ steps.unsigned-msi.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed/msi
+
+      - name: Swap in signed MSI
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        shell: pwsh
+        run: Copy-Item signed/msi/*.msi windows/build/ -Force
+
+      # Build the bundle around whichever MSI is now in windows\build
+      # (signed if the steps above ran, unsigned otherwise). Invokes
+      # wix directly rather than build.ps1 bundle because build.ps1
+      # wipes build\, which would discard the signed MSI.
+      - name: Build Burn bundle
+        shell: pwsh
+        run: |
+          $msi = Get-ChildItem windows/build/*.msi | Select-Object -First 1
+          $ver = $msi.BaseName -replace '^OhBrother-','' -replace '-x64$',''
+          wix extension add --global WixToolset.Util.wixext/7.0.0
+          wix extension add --global WixToolset.BootstrapperApplications.wixext/7.0.0
+          Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile windows/build/MicrosoftEdgeWebView2Setup.exe
+          wix build -arch x64 `
+            -ext WixToolset.Util.wixext/7.0.0 -ext WixToolset.BootstrapperApplications.wixext/7.0.0 `
+            -d "Version=$ver" -d "Msi=$($msi.FullName)" `
+            -d "WindowsDir=$PWD\windows" `
+            -d "WebView2Bootstrapper=$PWD\windows\build\MicrosoftEdgeWebView2Setup.exe" `
+            windows/installer/Bundle.wxs -o "windows/build/OhBrother-$ver-x64-setup.exe"
+
+      # ---- Bundle signing: Burn engine first, then the bundle ----
+      # (three SignPath round-trips total per release: msi, engine, bundle)
+      - name: Detach Burn engine
+        id: detach
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        shell: pwsh
+        run: |
+          $bundle = Get-ChildItem windows/build/*-setup.exe | Select-Object -First 1
+          wix burn detach $bundle.FullName -engine windows/build/engine.exe
+          "bundle=$($bundle.FullName)" >> $env:GITHUB_OUTPUT
+
+      - name: Upload unsigned engine
+        id: unsigned-engine
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: unsigned-engine
+          path: windows/build/engine.exe
+
+      - name: Sign Burn engine (SignPath)
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        uses: signpath/github-action-submit-signing-request@v1.2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: oh-brother
+          signing-policy-slug: release-signing
+          github-artifact-id: ${{ steps.unsigned-engine.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed/engine
+
+      - name: Reattach signed engine
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        shell: pwsh
+        run: wix burn reattach "${{ steps.detach.outputs.bundle }}" -engine signed/engine/engine.exe
+
+      - name: Upload unsigned bundle
+        id: unsigned-bundle
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: unsigned-bundle
+          path: windows/build/*-setup.exe
+
+      - name: Sign bundle (SignPath)
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        uses: signpath/github-action-submit-signing-request@v1.2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: oh-brother
+          signing-policy-slug: release-signing
+          github-artifact-id: ${{ steps.unsigned-bundle.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed/bundle
+
+      - name: Swap in signed bundle
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        shell: pwsh
+        run: Copy-Item signed/bundle/*-setup.exe windows/build/ -Force
+
+      # Confirm the signing round-trips actually landed, rather than
+      # trusting that they did. The macOS release shipped ad-hoc signed
+      # precisely because nothing inspected the finished artifact; a
+      # swap step here that quietly copies nothing would do the same.
+      # Dormant until SignPath is configured, same gate as the rest.
+      - name: Verify artifacts are Authenticode signed
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        shell: pwsh
+        run: |
+          $failed = $false
+          Get-ChildItem windows/build/*.msi, windows/build/*-setup.exe | ForEach-Object {
+            $sig = Get-AuthenticodeSignature $_.FullName
+            Write-Host "$($_.Name): $($sig.Status) — $($sig.SignerCertificate.Subject)"
+            if ($sig.Status -ne 'Valid') {
+              Write-Host "::error::$($_.Name) is not validly signed (status: $($sig.Status))"
+              $failed = $true
+            }
+          }
+          if ($failed) { exit 1 }
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: |
+            windows/build/*.msi
+            windows/build/*-setup.exe
+          generate_release_notes: true
+
+  winget:
+    needs: build
+    runs-on: ubuntu-latest
+    # Skip prereleases like v0.2.0-rc.1; no-op until WINGET_TOKEN exists
+    # and the package's first version was submitted manually.
+    if: ${{ !contains(github.ref_name, '-') }}
+    env:
+      # The secrets context is not allowed in step `if`s (a parse
+      # error that invalidates the whole workflow) — test via env.
+      WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+    steps:
+      - name: Publish to winget (update PR)
+        if: ${{ env.WINGET_TOKEN != '' }}
+        uses: vedantmgoyal9/winget-releaser@v2
+        with:
+          identifier: CurtisGalloway.OhBrother
+          installers-regex: '\.msi$'
+          token: ${{ secrets.WINGET_TOKEN }}
+      - name: Skipped (no WINGET_TOKEN)
+        if: ${{ env.WINGET_TOKEN == '' }}
+        run: echo "WINGET_TOKEN not set — skipping winget publish. See windows/INSTALLER-PLAN.md."

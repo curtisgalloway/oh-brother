@@ -1,0 +1,43 @@
+# SPDX-FileCopyrightText: 2026 Curtis Galloway
+# SPDX-License-Identifier: Apache-2.0
+#
+# Dependabot *version* updates. These are a different feature from
+# Dependabot *security* updates, which are a repo setting and were
+# already switched on — and which nonetheless did nothing about the two
+# open alerts on this repo.
+#
+# The reason is worth writing down: security updates only open a PR when
+# the vulnerable package has a fix reachable within the existing
+# resolution constraints. Both alerts here are transitive crates pinned
+# by a stale direct dependency (phf_generator 0.8 requires rand ^0.7;
+# gtk 0.18 requires glib 0.18, both via wry), so no in-range fix exists
+# and Dependabot correctly stays silent. Only moving the direct
+# dependency forward clears them.
+#
+# Hence version updates: keeping wry/tao/muda current is what actually
+# prevents this class of alert, rather than reacting to it.
+
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /rust
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # tao, wry and muda are version-coupled — they share types across
+      # their APIs, and bumping one without the others does not compile.
+      # One grouped PR, or three PRs that each fail on their own.
+      webview:
+        patterns:
+          - tao
+          - wry
+          - muda
+
+  # Catches the deprecated-runner churn that has already bitten this
+  # repo once (see the "Bump workflow actions off the deprecated Node 20
+  # runtime" commit).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

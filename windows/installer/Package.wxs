@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: 2026 Curtis Galloway
+SPDX-License-Identifier: Apache-2.0
+
+Oh Brother per-user MSI (WiX v7). Built by windows\build.ps1 msi.
+
+Preprocessor variables (all passed by build.ps1):
+  Version     product version, first three fields of the workspace version
+  DistDir     folder holding the built app ("Oh Brother.exe", label-web.exe, label.exe)
+  WindowsDir  the windows\ directory of the repo (for AppIcon.ico)
+
+Design notes:
+  - Scope="perUser": installs to %LOCALAPPDATA%\Programs\Oh Brother with no
+    elevation, same location the old build.ps1 xcopy install used.
+  - Every component keypaths on an HKCU registry value (required for
+    per-user files; satisfies ICE38).
+  - MajorUpgrade: installing any newer .msi replaces the old version
+    in place; ARP shows exactly one "Oh Brother" entry.
+  - The app's Tools menu PATH-shim installer keeps working unchanged;
+    plain MSI does not virtualize HKCU writes (the reason MSIX was
+    rejected). The shim (%LOCALAPPDATA%\oh-brother\bin) is app data,
+    not an MSI component, so uninstall leaves it behind - acceptable
+    for now, noted in the installer plan doc.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="Oh Brother"
+           Manufacturer="Curtis Galloway"
+           Version="$(var.Version)"
+           UpgradeCode="8B1FB345-683B-4651-98F8-F7A3DD8E509E"
+           Scope="perUser"
+           Language="1033"
+           Codepage="1252"
+           Compressed="yes">
+
+    <SummaryInformation Description="Oh Brother - Brother P-touch label printing (app, web UI, and CLI)" />
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Oh Brother is already installed. Uninstall it first to install this older version." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="AppIcon.ico" SourceFile="$(var.WindowsDir)\AppIcon.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/curtisgalloway/oh-brother" />
+
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="ProgramsDir" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="Oh Brother" />
+      </Directory>
+    </StandardDirectory>
+
+    <!-- File components with registry keypaths cannot auto-generate
+         guids (WIX0230, found on the first real wix build); these
+         three are permanent component identity like the UpgradeCode —
+         never regenerate them. -->
+    <ComponentGroup Id="AppComponents" Directory="INSTALLFOLDER">
+      <Component Id="cmpAppExe" Guid="EB945CC8-1E79-40AF-8767-F05EE48D777B">
+        <File Id="filAppExe" Name="Oh Brother.exe" Source="$(var.DistDir)\Oh Brother.exe" />
+        <RegistryValue Root="HKCU" Key="Software\oh-brother\msi" Name="app" Value="[INSTALLFOLDER]" Type="string" KeyPath="yes" />
+        <RemoveFolder Id="rmInstallFolder" Directory="INSTALLFOLDER" On="uninstall" />
+        <!-- Only removed if empty; usually preexists and stays. Keeps ICE64 quiet. -->
+        <RemoveFolder Id="rmProgramsDir" Directory="ProgramsDir" On="uninstall" />
+      </Component>
+      <Component Id="cmpLabelWebExe" Guid="6CD9B901-DCA2-4723-B603-696FED703EA0">
+        <File Id="filLabelWebExe" Name="label-web.exe" Source="$(var.DistDir)\label-web.exe" />
+        <RegistryValue Root="HKCU" Key="Software\oh-brother\msi" Name="label-web" Value="1" Type="integer" KeyPath="yes" />
+      </Component>
+      <Component Id="cmpLabelExe" Guid="369C3A36-8AD5-4023-91A2-2CA9F26AF471">
+        <File Id="filLabelExe" Name="label.exe" Source="$(var.DistDir)\label.exe" />
+        <RegistryValue Root="HKCU" Key="Software\oh-brother\msi" Name="label" Value="1" Type="integer" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Component Id="cmpStartMenuShortcut">
+        <Shortcut Id="shcStartMenu"
+                  Name="Oh Brother"
+                  Description="Print labels on Brother P-touch printers"
+                  Target="[INSTALLFOLDER]Oh Brother.exe"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="AppIcon.ico" />
+        <RegistryValue Root="HKCU" Key="Software\oh-brother\msi" Name="shortcut" Value="1" Type="integer" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+
+    <Feature Id="Main" Title="Oh Brother" Level="1" AllowAbsent="no">
+      <ComponentGroupRef Id="AppComponents" />
+      <ComponentRef Id="cmpStartMenuShortcut" />
+    </Feature>
+  </Package>
+</Wix>
