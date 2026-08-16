@@ -16,7 +16,7 @@ path = "src/main.rs"
 tao = "0.36"
 wry = "0.56"
 muda = "0.19"
-rfd = "0.15"
+rfd = "0.17"
 ureq = "3"
 
 [target.'cfg(windows)'.dependencies]
