@@ -161,7 +161,9 @@ fn ensure_user_path(entry: &str) -> std::io::Result<bool> {
         "Path",
         &RegValue {
             vtype: REG_EXPAND_SZ,
-            bytes,
+            // winreg 0.56 made RegValue borrow its payload
+            // (bytes: Cow<'_, [u8]>); hand it the Vec as Cow::Owned.
+            bytes: bytes.into(),
         },
     )?;
     unsafe {
