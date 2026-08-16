@@ -12,7 +12,10 @@
 # and make project-slug / signing-policy-slug below match the SignPath
 # project. While unset, the workflow ships unsigned artifacts.
 # Check SignPath's action docs when onboarding — input names here
-# (github-artifact-id etc.) follow v1.2 and may drift.
+# (github-artifact-id etc.) follow v2.3 and may drift. Note that
+# actionlint does NOT validate third-party action inputs (verified: it
+# ignores an invented input on this action), so a rename will surface
+# only at signing time.
 #
 # winget publishing similarly waits on secrets.WINGET_TOKEN (a classic
 # PAT with public_repo scope; winget-releaser uses it to fork/PR
@@ -33,11 +36,11 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           workspaces: rust
 
@@ -61,14 +64,14 @@ jobs:
       - name: Upload unsigned MSI for signing
         id: unsigned-msi
         if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: unsigned-msi
           path: windows/build/*.msi
 
       - name: Sign MSI (SignPath)
         if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
-        uses: signpath/github-action-submit-signing-request@v2.3
+        uses: signpath/github-action-submit-signing-request@c92b958760219087e01f8d67a1669ed57afe2627 # v2.3
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
@@ -116,14 +119,14 @@ jobs:
       - name: Upload unsigned engine
         id: unsigned-engine
         if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: unsigned-engine
           path: windows/build/engine.exe
 
       - name: Sign Burn engine (SignPath)
         if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
-        uses: signpath/github-action-submit-signing-request@v2.3
+        uses: signpath/github-action-submit-signing-request@c92b958760219087e01f8d67a1669ed57afe2627 # v2.3
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
@@ -141,14 +144,14 @@ jobs:
       - name: Upload unsigned bundle
         id: unsigned-bundle
         if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: unsigned-bundle
           path: windows/build/*-setup.exe
 
       - name: Sign bundle (SignPath)
         if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
-        uses: signpath/github-action-submit-signing-request@v2.3
+        uses: signpath/github-action-submit-signing-request@c92b958760219087e01f8d67a1669ed57afe2627 # v2.3
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
@@ -184,7 +187,7 @@ jobs:
           if ($failed) { exit 1 }
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3
         with:
           files: |
             windows/build/*.msi
@@ -204,7 +207,7 @@ jobs:
     steps:
       - name: Publish to winget (update PR)
         if: ${{ env.WINGET_TOKEN != '' }}
-        uses: vedantmgoyal9/winget-releaser@v2
+        uses: vedantmgoyal9/winget-releaser@4ffc7888bffd451b357355dc214d43bb9f23917e # v2
         with:
           identifier: CurtisGalloway.OhBrother
           installers-regex: '\.msi$'
