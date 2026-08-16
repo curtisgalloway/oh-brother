@@ -50,6 +50,12 @@ name: release-windows
 on:
   push:
     tags: ["v*"]
+  # Dry run: exercises build -> sign MSI -> bundle -> sign engine ->
+  # sign bundle -> verify, and publishes nothing (the release step and
+  # the winget job are both tag-only). Use this to prove the Azure
+  # signing setup works before committing to a version tag — same
+  # pattern as release-macos.yml.
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -224,6 +230,7 @@ jobs:
           if ($failed) { exit 1 }
 
       - name: Create GitHub Release
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3
         with:
           files: |
@@ -238,9 +245,10 @@ jobs:
   winget:
     needs: build
     runs-on: ubuntu-latest
-    # Skip prereleases like v0.2.0-rc.1; no-op until WINGET_TOKEN exists
-    # and the package's first version was submitted manually.
-    if: ${{ !contains(github.ref_name, '-') }}
+    # Tag-only, so a workflow_dispatch dry run never touches winget.
+    # Also skips prereleases like v0.2.0-rc.1; no-op until WINGET_TOKEN
+    # exists and the package's first version was submitted manually.
+    if: ${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref_name, '-') }}
     env:
       # The secrets context is not allowed in step `if`s (a parse
       # error that invalidates the whole workflow) — test via env.
