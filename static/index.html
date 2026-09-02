@@ -749,7 +749,11 @@ async function renderPreview() {
   try {
     canvas = LabelCore.renderLabel(text, renderParams());
   } catch (e) {
-    $("readout").innerHTML = `<span class="err">${e.message || e}</span>`;
+    // Error text can echo label input; keep it text, never markup.
+    const err = document.createElement("span");
+    err.className = "err";
+    err.textContent = e.message || String(e);
+    $("readout").replaceChildren(err);
     state.lastCanvas = null;
     return;
   }
