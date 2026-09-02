@@ -13,9 +13,11 @@
 //! renders in the browser and prints via `/api/print-raw`.
 
 use std::collections::HashMap;
+use std::panic::{catch_unwind, AssertUnwindSafe};
 
-use axum::extract::{Path, Query, State};
-use axum::http::{header, StatusCode};
+use axum::extract::{Path, Query, Request, State};
+use axum::http::{header, HeaderMap, StatusCode};
+use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -24,8 +26,21 @@ use image::GrayImage;
 use serde_json::{json, Value};
 use tokio::sync::{mpsc, oneshot};
 
-use label_render::{fontcache, hostfonts, render_label, TextOptions};
-use pt_protocol::{available_printers, find_printer, Label, DPI, PTH500, PTP300BT};
+use label_render::{
+    fontcache, hostfonts, render_label, validate_untrusted_font_spec, TextOptions, MAX_RENDER_PX,
+};
+use pt_protocol::{available_printers, find_printer, Label, DPI, HEAD_PX, PTH500, PTP300BT};
+
+/// Most copies one request may print — the web UI's input cap. Tape
+/// is finite, and a runaway value would feed a whole cartridge into
+/// the cutter.
+const MAX_COPIES: i64 = 50;
+
+/// Accepted horizontal stretch. The UI offers 50–200 %; the API gets
+/// some headroom, but not enough to turn a label into a resampling
+/// job of hundreds of thousands of columns.
+const MIN_HSCALE: f64 = 0.1;
+const MAX_HSCALE: f64 = 10.0;
 
 const INDEX_HTML: &[u8] = include_bytes!("../../../static/index.html");
 const LABELCORE_JS: &[u8] = include_bytes!("../../../static/labelcore.js");
@@ -81,11 +96,16 @@ type Job = Box<dyn FnOnce() + Send>;
 #[derive(Clone)]
 struct AppState {
     jobs: mpsc::UnboundedSender<Job>,
+    /// The port we are serving on: what a legitimate browser's Origin
+    /// and Host headers must name (same_origin_guard).
+    port: u16,
 }
 
 /// Run a closure on the printer thread (the process main thread) and
 /// await its result. The single queue also serializes printer access.
-async fn run_printer_job<T, F>(state: &AppState, f: F) -> T
+/// Err means the job panicked (run_jobs caught it); callers turn that
+/// into a 503 rather than a dead server.
+async fn run_printer_job<T, F>(state: &AppState, f: F) -> Result<T, String>
 where
     T: Send + 'static,
     F: FnOnce() -> T + Send + 'static,
@@ -97,7 +117,84 @@ where
             let _ = tx.send(f());
         }))
         .expect("printer job loop gone");
-    rx.await.expect("printer job dropped")
+    rx.await
+        .map_err(|_| "the printer job failed unexpectedly; see the server log".to_owned())
+}
+
+/// The printer job loop; runs on the calling thread until every
+/// sender is gone. A job that panics is reported and dropped — its
+/// reply channel goes with it, which the awaiting handler reports as
+/// a 503 — instead of unwinding this thread. That matters because
+/// this is the process main thread (the macOS Bluetooth transport
+/// requires it), so an uncaught panic here would take the whole
+/// server down, and a job runs user input: printer ids, render
+/// requests, and whatever the printer sends back.
+fn run_jobs(mut rx: mpsc::UnboundedReceiver<Job>) {
+    while let Some(job) = rx.blocking_recv() {
+        if catch_unwind(AssertUnwindSafe(job)).is_err() {
+            eprintln!(
+                "label-web: a printer job panicked (details above); the server keeps running"
+            );
+        }
+    }
+}
+
+/// Browser-origin guard. The server listens on loopback only, but a
+/// browser on this machine will carry requests here from ANY site it
+/// has open: a cross-site POST with a text/plain body needs no CORS
+/// preflight (and parse_json ignores Content-Type by design), an
+/// <img> tag issues GETs, and DNS rebinding lets a site read the
+/// responses. Three checks, none of which a non-browser client — curl,
+/// the desktop shells, the CLI — trips:
+///
+/// - `Host` must name this server, which defeats DNS rebinding (a
+///   rebinding site's requests carry its own hostname);
+/// - `Origin`, when present, must be this server (browsers attach it
+///   to every cross-origin request and every POST; curl sends none);
+/// - `Sec-Fetch-Site`, when present, must not be `cross-site`.
+///
+/// Rejections are 403s with a JSON error, like every other refusal.
+async fn same_origin_guard(State(state): State<AppState>, req: Request, next: Next) -> Response {
+    if let Err(why) = check_browser_headers(req.headers(), state.port) {
+        return (StatusCode::FORBIDDEN, Json(json!({"error": why}))).into_response();
+    }
+    next.run(req).await
+}
+
+fn check_browser_headers(headers: &HeaderMap, port: u16) -> Result<(), String> {
+    let mut hosts = vec![format!("127.0.0.1:{port}"), format!("localhost:{port}")];
+    if port == 80 {
+        // Browsers omit the default port from Host and Origin.
+        hosts.extend(["127.0.0.1".to_owned(), "localhost".to_owned()]);
+    }
+    let get = |name: &str| {
+        headers
+            .get(name)
+            .and_then(|v| v.to_str().ok())
+            .map(str::trim)
+    };
+    if let Some(host) = get("host") {
+        if !hosts.iter().any(|h| h.eq_ignore_ascii_case(host)) {
+            return Err(format!(
+                "request Host {host:?} is not this server (expected {})",
+                hosts.join(" or ")
+            ));
+        }
+    }
+    if let Some(origin) = get("origin") {
+        let ours = hosts
+            .iter()
+            .any(|h| origin.eq_ignore_ascii_case(&format!("http://{h}")));
+        if !ours {
+            return Err(format!("cross-origin request from {origin:?} refused"));
+        }
+    }
+    if let Some(site) = get("sec-fetch-site") {
+        if site.eq_ignore_ascii_case("cross-site") {
+            return Err("cross-site browser request refused".into());
+        }
+    }
+    Ok(())
 }
 
 fn static_response(content_type: &'static str, body: &'static [u8]) -> Response {
@@ -181,9 +278,11 @@ async fn api_meta() -> Json<Value> {
         .map(|(mm, px)| (mm.to_string(), json!(px)))
         .collect::<serde_json::Map<_, _>>()
         .into();
+    // Family and scripts only: the page never needs the file path, and
+    // paths reveal the home directory and what is installed.
     let host_fonts: Vec<Value> = hostfonts::list_families()
         .into_iter()
-        .map(|f| json!({"family": f.family, "path": f.spec, "scripts": f.scripts}))
+        .map(|f| json!({"family": f.family, "scripts": f.scripts}))
         .collect();
     Json(json!({
         "fonts": fonts,
@@ -207,7 +306,7 @@ async fn api_status(
     Query(params): Query<HashMap<String, String>>,
 ) -> Json<Value> {
     let printer_id = params.get("printer").filter(|s| !s.is_empty()).cloned();
-    let (result, printers) = run_printer_job(&state, move || {
+    let job = run_printer_job(&state, move || {
         let printers = printers_json();
         let result = find_printer(printer_id.as_deref()).and_then(|mut printer| {
             let st = printer.status()?;
@@ -221,6 +320,12 @@ async fn api_status(
         (result, printers)
     })
     .await;
+    let (result, printers) = match job {
+        Ok(v) => v,
+        Err(e) => {
+            return Json(json!({"connected": false, "error": e, "printers": []}));
+        }
+    };
     match result {
         Ok((st, model, used_id, lead_mm)) => Json(json!({
             "connected": true,
@@ -241,6 +346,11 @@ async fn api_status(
     }
 }
 
+/// The browser's rendered label, as the PNG data URL the page sends.
+/// Decoded as PNG only, with the dimensions capped BEFORE the decoder
+/// allocates: the head is HEAD_PX tall, and a label wider than
+/// MAX_RENDER_PX is longer than any cartridge (a 2 MB PNG of blank
+/// tape would otherwise decode to gigabytes and kilometres).
 fn decode_png_label(data_url: &str) -> Result<image::GrayImage, String> {
     let b64 = data_url
         .split_once(',')
@@ -249,8 +359,26 @@ fn decode_png_label(data_url: &str) -> Result<image::GrayImage, String> {
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(b64)
         .map_err(|_| "bad png payload")?;
-    let img = image::load_from_memory(&bytes).map_err(|_| "bad png payload")?;
+    let mut reader =
+        image::ImageReader::with_format(std::io::Cursor::new(bytes), image::ImageFormat::Png);
+    let mut limits = image::Limits::default();
+    limits.max_image_width = Some(MAX_RENDER_PX as u32);
+    limits.max_image_height = Some(HEAD_PX);
+    reader.limits(limits);
+    let img = reader.decode().map_err(|_| "bad png payload")?;
     Ok(img.to_luma8())
+}
+
+/// `copies`, coerced like web.py did (int(); at least 1) but capped.
+fn copies_field(data: &Value) -> Result<u32, String> {
+    let copies = match data.get("copies") {
+        Some(value) => as_int(value)?,
+        None => 1,
+    };
+    if copies > MAX_COPIES {
+        return Err(format!("copies {copies} is above the {MAX_COPIES} limit"));
+    }
+    Ok(copies.max(1) as u32)
 }
 
 async fn api_print_raw(State(state): State<AppState>, body: axum::body::Bytes) -> Response {
@@ -258,12 +386,9 @@ async fn api_print_raw(State(state): State<AppState>, body: axum::body::Bytes) -
         Ok(data) => data,
         Err(e) => return bad_request(e),
     };
-    let copies = match data.get("copies") {
-        Some(value) => match as_int(value) {
-            Ok(copies) => copies.max(1) as u32,
-            Err(e) => return bad_request(e),
-        },
-        None => 1,
+    let copies = match copies_field(&data) {
+        Ok(copies) => copies,
+        Err(e) => return bad_request(e),
     };
     let chain = truthy(data.get("chain"));
     let save_tape = truthy(data.get("save_tape"));
@@ -282,7 +407,7 @@ async fn api_print_raw(State(state): State<AppState>, body: axum::body::Bytes) -
 
     // Errors are (status code, message); 400 for a client-fixable
     // mismatch, 503 for printer trouble — mirroring web.py.
-    let result: Result<(), (u16, String)> = run_printer_job(&state, move || {
+    let job: Result<Result<(), (u16, String)>, String> = run_printer_job(&state, move || {
         let mut printer = find_printer(printer_id.as_deref()).map_err(|e| (503, e.0))?;
         let st = printer.status().map_err(|e| (503, e.0))?;
         if !st.errors.is_empty() {
@@ -313,7 +438,7 @@ async fn api_print_raw(State(state): State<AppState>, body: axum::body::Bytes) -
     })
     .await;
 
-    match result {
+    match job.unwrap_or_else(|e| Err((503, e))) {
         Ok(()) => {
             let mm = (f64::from(width) / f64::from(DPI) * 25.4 * 10.0).round() / 10.0;
             Json(json!({"ok": true, "mm": mm, "copies": copies})).into_response()
@@ -412,6 +537,11 @@ fn render_from_request(data: &Value, tape_px: u32) -> Result<GrayImage, String> 
         .and_then(Value::as_str)
         .filter(|s| !s.is_empty())
         .map(str::to_owned);
+    if let Some(spec) = &font {
+        // A path in here came over the network: keep it inside the
+        // font directories before anything opens it.
+        validate_untrusted_font_spec(spec).map_err(|e| e.0)?;
+    }
     let size = if truthy(data.get("size")) {
         let size = as_int(&data["size"])?;
         Some(u32::try_from(size).map_err(|_| format!("bad size {size}"))?)
@@ -427,6 +557,12 @@ fn render_from_request(data: &Value, tape_px: u32) -> Result<GrayImage, String> 
         Some(value) => as_float(value)?,
         None => 1.0,
     };
+    // as_float parses "inf" and "nan" too; neither is a stretch.
+    if !hscale.is_finite() || !(MIN_HSCALE..=MAX_HSCALE).contains(&hscale) {
+        return Err(format!(
+            "bad hscale {hscale}: must be between {MIN_HSCALE} and {MAX_HSCALE}"
+        ));
+    }
     render_label(
         text,
         tape_px,
@@ -501,12 +637,9 @@ async fn api_print(State(state): State<AppState>, body: axum::body::Bytes) -> Re
         Ok(data) => data,
         Err(e) => return bad_request(e),
     };
-    let copies = match data.get("copies") {
-        Some(value) => match as_int(value) {
-            Ok(copies) => copies.max(1) as u32,
-            Err(e) => return bad_request(e),
-        },
-        None => 1,
+    let copies = match copies_field(&data) {
+        Ok(copies) => copies,
+        Err(e) => return bad_request(e),
     };
     let chain = truthy(data.get("chain"));
     let save_tape = truthy(data.get("save_tape"));
@@ -514,35 +647,36 @@ async fn api_print(State(state): State<AppState>, body: axum::body::Bytes) -> Re
 
     // (status code, message) errors: 400 for render/request problems,
     // 503 for printer trouble — mirroring web.py.
-    let result: Result<GrayImage, (u16, String)> = run_printer_job(&state, move || {
-        let mut printer = find_printer(printer_id.as_deref()).map_err(|e| (503, e.0))?;
-        let st = printer.status().map_err(|e| (503, e.0))?;
-        if !st.errors.is_empty() {
-            return Err((503, format!("printer reports: {}", st.errors.join(", "))));
-        }
-        if st.tape_px == 0 {
-            return Err((
-                503,
-                format!("unsupported tape width {} mm", st.media_width_mm),
-            ));
-        }
-        let img = render_from_request(&data, u32::from(st.tape_px)).map_err(|e| (400, e))?;
-        let label = Label::new(
-            img.width(),
-            img.height(),
-            img.pixels().map(|p| p.0[0] < 128).collect(),
-        );
-        for copy in 0..copies {
-            let last = copy == copies - 1;
-            printer
-                .print(&label, chain || !last, save_tape)
-                .map_err(|e| (503, e.0))?;
-        }
-        Ok(img)
-    })
-    .await;
+    let job: Result<Result<GrayImage, (u16, String)>, String> =
+        run_printer_job(&state, move || {
+            let mut printer = find_printer(printer_id.as_deref()).map_err(|e| (503, e.0))?;
+            let st = printer.status().map_err(|e| (503, e.0))?;
+            if !st.errors.is_empty() {
+                return Err((503, format!("printer reports: {}", st.errors.join(", "))));
+            }
+            if st.tape_px == 0 {
+                return Err((
+                    503,
+                    format!("unsupported tape width {} mm", st.media_width_mm),
+                ));
+            }
+            let img = render_from_request(&data, u32::from(st.tape_px)).map_err(|e| (400, e))?;
+            let label = Label::new(
+                img.width(),
+                img.height(),
+                img.pixels().map(|p| p.0[0] < 128).collect(),
+            );
+            for copy in 0..copies {
+                let last = copy == copies - 1;
+                printer
+                    .print(&label, chain || !last, save_tape)
+                    .map_err(|e| (503, e.0))?;
+            }
+            Ok(img)
+        })
+        .await;
 
-    match result {
+    match job.unwrap_or_else(|e| Err((503, e))) {
         Ok(img) => Json(json!({
             "ok": true,
             "width": img.width(),
@@ -558,7 +692,10 @@ async fn api_print(State(state): State<AppState>, body: axum::body::Bytes) -> Re
     }
 }
 
-pub fn router(jobs: mpsc::UnboundedSender<Job>) -> Router {
+/// The application router. `port` is the port it will be served on;
+/// the origin guard uses it to recognize this server's own pages.
+pub fn router(jobs: mpsc::UnboundedSender<Job>, port: u16) -> Router {
+    let state = AppState { jobs, port };
     Router::new()
         .route("/", get(index))
         .route("/labelcore.js", get(labelcore_js))
@@ -570,7 +707,11 @@ pub fn router(jobs: mpsc::UnboundedSender<Job>) -> Router {
         .route("/api/print-raw", post(api_print_raw))
         .route("/api/render", post(api_render))
         .route("/api/print", post(api_print))
-        .with_state(AppState { jobs })
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            same_origin_guard,
+        ))
+        .with_state(state)
 }
 
 /// Serve on 127.0.0.1:port. Parks the calling thread in the printer
@@ -585,8 +726,8 @@ pub fn serve(port: u16) -> Result<(), String> {
         .set_nonblocking(true)
         .map_err(|e| format!("listener setup failed: {e}"))?;
 
-    let (tx, mut rx) = mpsc::unbounded_channel::<Job>();
-    let app = router(tx);
+    let (tx, rx) = mpsc::unbounded_channel::<Job>();
+    let app = router(tx, port);
     std::thread::spawn(move || {
         let runtime = tokio::runtime::Runtime::new().expect("tokio runtime");
         runtime.block_on(async move {
@@ -596,9 +737,7 @@ pub fn serve(port: u16) -> Result<(), String> {
             axum::serve(listener, app).await.expect("server error");
         });
     });
-    while let Some(job) = rx.blocking_recv() {
-        job();
-    }
+    run_jobs(rx);
     Ok(())
 }
 
@@ -708,6 +847,182 @@ mod tests {
         assert!(render_from_request(&req, 76).is_err());
     }
 
+    /// Request fields that size an allocation or a print run are
+    /// bounded: hscale (finite and within range), copies (the UI's
+    /// cap), and font paths (inside the font directories only).
+    #[test]
+    fn render_request_rejects_unbounded_inputs() {
+        for bad in [
+            json!("inf"),
+            json!("nan"),
+            json!(0.0),
+            json!(-1),
+            json!(1e6),
+        ] {
+            let mut req = request("HI");
+            req["hscale"] = bad.clone();
+            let err = render_from_request(&req, 76).unwrap_err();
+            assert!(err.contains("hscale"), "{bad}: {err}");
+        }
+        let mut req = request("HI");
+        req["hscale"] = json!(2);
+        assert!(render_from_request(&req, 76).is_ok());
+
+        assert_eq!(copies_field(&json!({})), Ok(1));
+        assert_eq!(copies_field(&json!({"copies": 0})), Ok(1));
+        assert_eq!(copies_field(&json!({"copies": "3"})), Ok(3));
+        assert_eq!(copies_field(&json!({"copies": MAX_COPIES})), Ok(50));
+        assert!(copies_field(&json!({"copies": MAX_COPIES + 1})).is_err());
+        assert!(copies_field(&json!({"copies": 4_294_967_296i64})).is_err());
+
+        // A path outside the font directories is refused before it is
+        // opened, with the same message whether or not it exists.
+        let outside =
+            render_from_request(&json!({"text": "HI", "font": "/etc/hosts"}), 76).unwrap_err();
+        assert!(outside.contains("not inside a font directory"), "{outside}");
+        let missing = render_from_request(&json!({"text": "HI", "font": "/etc/no-such.ttf"}), 76)
+            .unwrap_err();
+        assert_eq!(outside, missing.replace("/etc/no-such.ttf", "/etc/hosts"));
+        // Ids and family names are not paths and pass through.
+        assert!(
+            render_from_request(&json!({"text": "HI", "font": "no-such-family-xyz"}), 76)
+                .unwrap_err()
+                .contains("unknown font")
+        );
+    }
+
+    /// A panicking printer job must surface as an error to the
+    /// handler, not unwind the job thread (the process main thread in
+    /// production).
+    #[tokio::test]
+    async fn panicking_job_is_contained() {
+        let (tx, rx) = mpsc::unbounded_channel::<Job>();
+        let state = AppState {
+            jobs: tx,
+            port: 8763,
+        };
+        let loop_thread = std::thread::spawn(move || run_jobs(rx));
+        let err = run_printer_job(&state, || -> u8 { panic!("printer job boom") })
+            .await
+            .unwrap_err();
+        assert!(err.contains("failed unexpectedly"), "{err}");
+        // The loop survived the panic and still serves jobs.
+        assert_eq!(run_printer_job(&state, || 7u8).await, Ok(7));
+        drop(state);
+        loop_thread.join().unwrap();
+    }
+
+    /// The browser-origin guard: what a browser attaches to a
+    /// cross-site request is refused, what our own page and curl
+    /// send is not.
+    #[test]
+    fn browser_header_guard() {
+        let hdrs = |pairs: &[(&str, &str)]| {
+            let mut h = HeaderMap::new();
+            for (k, v) in pairs {
+                h.insert(
+                    axum::http::HeaderName::from_bytes(k.as_bytes()).unwrap(),
+                    v.parse().unwrap(),
+                );
+            }
+            h
+        };
+        // curl: Host only.
+        assert!(check_browser_headers(&hdrs(&[("host", "127.0.0.1:8763")]), 8763).is_ok());
+        assert!(check_browser_headers(&hdrs(&[("host", "localhost:8763")]), 8763).is_ok());
+        assert!(check_browser_headers(&hdrs(&[]), 8763).is_ok());
+        // Our own page posting to the API.
+        assert!(check_browser_headers(
+            &hdrs(&[
+                ("host", "127.0.0.1:8763"),
+                ("origin", "http://127.0.0.1:8763"),
+                ("sec-fetch-site", "same-origin"),
+            ]),
+            8763
+        )
+        .is_ok());
+        // Another site's page, simple POST: Origin gives it away.
+        assert!(check_browser_headers(
+            &hdrs(&[
+                ("host", "127.0.0.1:8763"),
+                ("origin", "https://evil.example")
+            ]),
+            8763
+        )
+        .is_err());
+        assert!(check_browser_headers(
+            &hdrs(&[("host", "127.0.0.1:8763"), ("origin", "null")]),
+            8763
+        )
+        .is_err());
+        // Another site's <img> GET: no Origin, but Sec-Fetch-Site.
+        assert!(check_browser_headers(
+            &hdrs(&[("host", "127.0.0.1:8763"), ("sec-fetch-site", "cross-site")]),
+            8763
+        )
+        .is_err());
+        // DNS rebinding: the browser thinks it is talking to evil.example.
+        assert!(check_browser_headers(&hdrs(&[("host", "evil.example:8763")]), 8763).is_err());
+        // A different local port is a different origin.
+        assert!(check_browser_headers(
+            &hdrs(&[
+                ("host", "127.0.0.1:8763"),
+                ("origin", "http://127.0.0.1:9999")
+            ]),
+            8763
+        )
+        .is_err());
+    }
+
+    /// The guard is wired into the router, in front of every route.
+    #[tokio::test]
+    async fn router_refuses_cross_site_requests() {
+        use tower::ServiceExt;
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let app = router(tx, 8763);
+        let post = |origin: Option<&str>| {
+            let mut b = axum::http::Request::builder()
+                .method("POST")
+                .uri("/api/render")
+                .header("host", "127.0.0.1:8763")
+                .header("content-type", "text/plain");
+            if let Some(o) = origin {
+                b = b.header("origin", o);
+            }
+            b.body(axum::body::Body::from(
+                serde_json::to_vec(&request("HELLO")).unwrap(),
+            ))
+            .unwrap()
+        };
+        let refused = app
+            .clone()
+            .oneshot(post(Some("https://evil.example")))
+            .await
+            .unwrap();
+        let (status, body) = response_json(refused).await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
+        assert!(
+            body["error"].as_str().unwrap().contains("cross-origin"),
+            "{body}"
+        );
+        let ok = app
+            .clone()
+            .oneshot(post(Some("http://127.0.0.1:8763")))
+            .await
+            .unwrap();
+        assert_eq!(ok.status(), StatusCode::OK);
+        let img = axum::http::Request::builder()
+            .uri("/api/meta")
+            .header("host", "127.0.0.1:8763")
+            .header("sec-fetch-site", "cross-site")
+            .body(axum::body::Body::empty())
+            .unwrap();
+        assert_eq!(
+            app.oneshot(img).await.unwrap().status(),
+            StatusCode::FORBIDDEN
+        );
+    }
+
     async fn response_json(response: Response) -> (StatusCode, Value) {
         let status = response.status();
         let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
@@ -759,7 +1074,7 @@ mod tests {
     async fn api_render_ignores_content_type() {
         use tower::ServiceExt;
         let (tx, _rx) = mpsc::unbounded_channel();
-        let app = router(tx);
+        let app = router(tx, 8763);
         let req = axum::http::Request::builder()
             .method("POST")
             .uri("/api/render")
