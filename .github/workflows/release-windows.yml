@@ -146,6 +146,13 @@ jobs:
       # (signed if the step above ran, unsigned otherwise). Invokes wix
       # directly rather than build.ps1 bundle because build.ps1 wipes
       # build\, which would discard the signed MSI.
+      #
+      # The WebView2 bootstrapper is downloaded fresh and compressed
+      # into the bundle, which this workflow then signs — so a hijacked
+      # download would ship under this project's signature. Its own
+      # Authenticode signature is verified first (mirrors
+      # Assert-MicrosoftSigned in windows\build.ps1, which documents the
+      # expected signer subject).
       - name: Build Burn bundle
         shell: pwsh
         env:
@@ -155,6 +162,12 @@ jobs:
           wix extension add --global WixToolset.Util.wixext/7.0.0
           wix extension add --global WixToolset.BootstrapperApplications.wixext/7.0.0
           Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile windows/build/MicrosoftEdgeWebView2Setup.exe
+          $sig = Get-AuthenticodeSignature (Get-Item windows/build/MicrosoftEdgeWebView2Setup.exe).FullName
+          if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch '(^|, )CN=Microsoft Corporation(,|$)') {
+            Write-Host "::error::WebView2 bootstrapper failed signature verification (status $($sig.Status), signer '$($sig.SignerCertificate.Subject)')"
+            exit 1
+          }
+          Write-Host "WebView2 bootstrapper signed by $($sig.SignerCertificate.Subject)"
           wix build -arch x64 `
             -ext WixToolset.Util.wixext/7.0.0 -ext WixToolset.BootstrapperApplications.wixext/7.0.0 `
             -d "Version=$($env:MSI_VERSION)" -d "Msi=$($env:MSI_PATH)" `
