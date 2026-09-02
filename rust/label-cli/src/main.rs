@@ -52,7 +52,7 @@ struct Args {
     width: u32,
 
     /// Number of copies
-    #[arg(long, default_value_t = 1)]
+    #[arg(long, default_value_t = 1, value_parser = clap::value_parser!(u32).range(1..))]
     copies: u32,
 
     /// Do not feed after printing; saves tape between consecutive labels
