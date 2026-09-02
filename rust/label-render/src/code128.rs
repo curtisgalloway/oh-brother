@@ -307,12 +307,15 @@ pub fn pattern(data: &str) -> Result<String, RenderError> {
         buffer: None,
     };
     let mut encoded = encoder.build();
-    let checksum = (u32::from(encoded[0])
+    // Weighted sum in u64: with u32 it silently wraps past ~10k
+    // characters in release builds (and panics in debug), yielding a
+    // check digit no scanner would accept.
+    let checksum = (u64::from(encoded[0])
         + encoded[1..]
             .iter()
             .enumerate()
-            .map(|(i, &v)| (i as u32 + 1) * u32::from(v))
-            .sum::<u32>())
+            .map(|(i, &v)| (i as u64 + 1) * u64::from(v))
+            .sum::<u64>())
         % 103;
     encoded.push(checksum as u8);
     let mut out: String = encoded
@@ -410,5 +413,20 @@ mod tests {
     fn rejects_unencodable() {
         assert!(pattern("héllo").is_err());
         assert!(pattern("日本").is_err());
+    }
+
+    /// The weighted checksum sum exceeds u32 for long data; the check
+    /// digit must still be the true value mod 103, not a wrapped one.
+    #[test]
+    fn long_data_checksum_does_not_wrap() {
+        let data = "z".repeat(20_000); // 'z' is 90 in Code B
+        let out = pattern(&data).unwrap();
+        // START_B + 20000 × 'z' + check: weights 1..=20000.
+        let expected = (104u64 + (1..=20_000u64).map(|i| i * 90).sum::<u64>()) % 103;
+        let check_at = out.len() - "11".len() - super::STOP.len() - 11;
+        assert_eq!(
+            &out[check_at..check_at + 11],
+            super::CODES[expected as usize]
+        );
     }
 }

@@ -25,7 +25,8 @@ mod transform;
 
 pub use render::{
     expand_symbols, hstack, load_image, render_code128, render_grid, render_label, render_qr,
-    render_text, resolve_font, TextOptions,
+    render_text, resolve_font, validate_untrusted_font_spec, TextOptions, MAX_FONT_SIZE_PX,
+    MAX_RENDER_PX,
 };
 
 /// Dev-harness access to the font loader for the metrics_dump example

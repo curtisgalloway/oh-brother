@@ -280,7 +280,7 @@ fn run(args: &Args) -> Result<(), String> {
     let img = if parts.len() == 1 {
         parts.pop().unwrap()
     } else {
-        hstack(&parts, height, 8)
+        hstack(&parts, height, 8).map_err(|e| e.0)?
     };
 
     if args.preview {

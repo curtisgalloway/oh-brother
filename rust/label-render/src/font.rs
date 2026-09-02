@@ -18,6 +18,11 @@ use ab_glyph::{point, Font as _, FontVec, PxScale, ScaleFont as _};
 
 use crate::{Canvas, RenderError};
 
+/// Largest font file the loader will read into memory. The biggest
+/// real font on a stock machine (Apple Color Emoji.ttc) is under
+/// 200 MB; this is a guard against pseudo-files, not a tuning knob.
+const MAX_FONT_FILE_BYTES: u64 = 512 * 1024 * 1024;
+
 /// Split an optional `#N` ttc face index off a font path
 /// (render._path_and_index). Like Python's `int(idx)`, a `#` with a
 /// non-numeric tail is an error, not a silently ignored suffix.
@@ -60,6 +65,22 @@ pub fn load(spec: &str) -> Result<Arc<LoadedFont>, RenderError> {
 impl LoadedFont {
     fn parse(spec: &str) -> Result<LoadedFont, RenderError> {
         let (path, index) = path_and_index(spec)?;
+        // Only regular files of plausible size: a font spec can name
+        // any path, and reading a device (`/dev/zero`) or a FIFO here
+        // would grow without bound or block the caller forever.
+        let meta = std::fs::metadata(path)
+            .map_err(|e| RenderError(format!("cannot read font {path}: {e}")))?;
+        if !meta.is_file() {
+            return Err(RenderError(format!(
+                "cannot read font {path}: not a regular file"
+            )));
+        }
+        if meta.len() > MAX_FONT_FILE_BYTES {
+            return Err(RenderError(format!(
+                "cannot read font {path}: {} bytes is larger than any font ({MAX_FONT_FILE_BYTES} max)",
+                meta.len()
+            )));
+        }
         let data = std::fs::read(path)
             .map_err(|e| RenderError(format!("cannot read font {path}: {e}")))?;
         let face = ttf_parser::Face::parse(&data, index)
@@ -168,6 +189,18 @@ mod tests {
     // warnings turns into a build failure.
     #[cfg(target_os = "macos")]
     use super::load;
+
+    /// Devices and other non-files are refused by the loader itself,
+    /// whoever the caller is: reading `/dev/zero` would never end.
+    #[cfg(unix)]
+    #[test]
+    fn loader_refuses_non_regular_files() {
+        let err = match super::load("/dev/null") {
+            Ok(_) => panic!("/dev/null loaded as a font"),
+            Err(e) => e,
+        };
+        assert!(err.0.contains("not a regular file"), "{err}");
+    }
 
     #[test]
     fn face_index_suffix_must_be_numeric() {
