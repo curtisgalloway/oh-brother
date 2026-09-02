@@ -60,7 +60,10 @@ fn scan() -> &'static [HostFont] {
     })
 }
 
-fn font_dirs() -> Vec<PathBuf> {
+/// The directories the host-font scan covers on this platform (only
+/// the ones that exist). Also the trust boundary for font paths that
+/// arrive over the HTTP API (render::validate_untrusted_font_spec).
+pub(crate) fn font_dirs() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
     if cfg!(target_os = "macos") {
         dirs.push(PathBuf::from("/System/Library/Fonts"));
@@ -86,14 +89,40 @@ fn font_dirs() -> Vec<PathBuf> {
     dirs
 }
 
+/// Deepest directory nesting the scan follows. Font trees are flat or
+/// nearly so; the cap (with the visited set) keeps a symlink loop in
+/// ~/Library/Fonts or ~/.fonts from recursing until the stack blows.
+const MAX_SCAN_DEPTH: usize = 8;
+
 fn collect_font_files(dir: &PathBuf, out: &mut Vec<PathBuf>) {
+    let mut visited = std::collections::HashSet::new();
+    collect_font_files_in(dir, out, &mut visited, 0);
+}
+
+fn collect_font_files_in(
+    dir: &PathBuf,
+    out: &mut Vec<PathBuf>,
+    visited: &mut std::collections::HashSet<PathBuf>,
+    depth: usize,
+) {
+    if depth > MAX_SCAN_DEPTH {
+        return;
+    }
+    // Directories are followed through symlinks (distros do symlink
+    // font trees), but each real directory is entered once.
+    let Ok(real) = dir.canonicalize() else {
+        return;
+    };
+    if !visited.insert(real) {
+        return;
+    }
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
     };
     for entry in entries.flatten() {
         let path = entry.path();
         if path.is_dir() {
-            collect_font_files(&path, out);
+            collect_font_files_in(&path, out, visited, depth + 1);
         } else if matches!(
             path.extension()
                 .and_then(|e| e.to_str())
@@ -217,4 +246,29 @@ pub fn list_families() -> Vec<HostFont> {
     let mut families: Vec<HostFont> = scan().to_vec();
     families.sort_by_key(|f| f.family.to_lowercase());
     families
+}
+
+// Symlink creation is unprivileged on unix only, so the whole module
+// is unix-gated (a bare #[cfg(unix)] on the test leaves the import
+// unused on Windows, which -D warnings turns into a build failure).
+#[cfg(all(test, unix))]
+mod tests {
+    use super::collect_font_files;
+
+    /// A directory that links back to its own ancestor must not
+    /// recurse forever: each real directory is entered once and the
+    /// files inside are still found exactly once.
+    #[test]
+    fn scan_survives_symlink_loops() {
+        let root = std::env::temp_dir().join(format!("hostfonts-loop-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let nested = root.join("a").join("b");
+        std::fs::create_dir_all(&nested).unwrap();
+        std::fs::write(nested.join("x.ttf"), b"not really a font").unwrap();
+        std::os::unix::fs::symlink(&root, nested.join("loop")).unwrap();
+        let mut out = Vec::new();
+        collect_font_files(&root, &mut out);
+        assert_eq!(out.len(), 1, "{out:?}");
+        let _ = std::fs::remove_dir_all(&root);
+    }
 }

@@ -73,12 +73,15 @@ fn oversized_labels_error_cleanly() {
     let err = render_label("HI", 76, &huge_margin).unwrap_err();
     assert!(err.0.contains("too wide"), "{err}");
 
+    // A size this large is refused by the size cap before the width
+    // check (rasterizing costs size² pixels per glyph, so the cap
+    // matters even for sizes that would still fit the width bound).
     let huge_size = TextOptions {
         size: Some(1_000_000_000),
         ..opts
     };
     let err = render_label("HI", 76, &huge_size).unwrap_err();
-    assert!(err.0.contains("too wide"), "{err}");
+    assert!(err.0.contains("px limit"), "{err}");
 }
 
 #[test]

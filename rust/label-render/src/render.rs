@@ -7,6 +7,7 @@
 //! render.py first, then this file.
 
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 
 use image::{imageops, GrayImage, Luma};
@@ -16,11 +17,21 @@ use crate::{code128, fontcache, hostfonts, Canvas, RenderError, Result, DPI};
 
 const GRIDFINITY_U_MM: f64 = 42.0;
 
-// Widest label this renderer will produce (~70 m of tape — far beyond
-// any cartridge). Python has no such bound and dies with a catchable
-// MemoryError on absurd widths; Rust's allocator ABORTS the process
-// instead, so oversized requests must be rejected before allocating.
-const MAX_RENDER_PX: i64 = 500_000;
+/// Widest label this renderer will produce (~70 m of tape — far beyond
+/// any cartridge). Python has no such bound and dies with a catchable
+/// MemoryError on absurd widths; Rust's allocator ABORTS the process
+/// instead, so oversized requests must be rejected before allocating.
+/// Every allocation-sized-by-input path checks against this BEFORE it
+/// allocates: text canvases, hscale resampling, barcode strips, and
+/// the hstack that joins segments.
+pub const MAX_RENDER_PX: i64 = 500_000;
+
+/// Largest fixed font size accepted, in px per em. Far above anything
+/// a 128-dot head can show (auto-fit never exceeds 4× the tape
+/// height); the bound exists because rasterizing a glyph costs its
+/// bounding box in pixels, i.e. size², so an unbounded `size` from the
+/// HTTP API could pin the printer thread for hours.
+pub const MAX_FONT_SIZE_PX: u32 = 1024;
 
 const WHITE: Luma<u8> = Luma([255]);
 const BLACK: Luma<u8> = Luma([0]);
@@ -89,11 +100,7 @@ pub fn resolve_font(spec: Option<&str>) -> Result<String> {
     let Some(spec) = spec else {
         return cached_or_fallback(cache.default_font_id(), "default font");
     };
-    if spec.contains('/')
-        || spec.ends_with(".ttf")
-        || spec.ends_with(".ttc")
-        || spec.ends_with(".otf")
-    {
+    if is_path_spec(spec) {
         let (path, _) = font::path_and_index(spec)?;
         if !std::path::Path::new(path).exists() {
             return Err(RenderError(format!("font file not found: {spec}")));
@@ -309,11 +316,19 @@ pub fn render_text(text: &str, height_px: u32, opts: &TextOptions) -> Result<Gra
             "{n} lines do not fit in {height_px} px of tape"
         )));
     }
+    if !opts.hscale.is_finite() || opts.hscale <= 0.0 {
+        return Err(RenderError(format!("bad hscale {}", opts.hscale)));
+    }
     let main = font::load(&font_path)?;
     let size = match opts.fixed_size() {
         Some(size) => size,
         None => fit_font_size(&main, line_height),
     };
+    if size > MAX_FONT_SIZE_PX {
+        return Err(RenderError(format!(
+            "font size {size} px is above the {MAX_FONT_SIZE_PX} px limit"
+        )));
+    }
 
     let line_runs: Vec<Vec<(String, String)>> = lines
         .iter()
@@ -362,7 +377,16 @@ pub fn render_text(text: &str, height_px: u32, opts: &TextOptions) -> Result<Gra
     let mut img = GrayImage::from_vec(canvas.width, canvas.height, canvas.buf)
         .expect("canvas buffer matches dimensions");
     if opts.hscale != 1.0 {
-        let new_w = ((f64::from(img.width()) * opts.hscale).round_ties_even() as i64).max(1) as u32;
+        // The stretched width is what gets allocated, so it is bounded
+        // like every other input-sized canvas (hscale itself was
+        // checked finite and positive above).
+        let new_w = (f64::from(img.width()) * opts.hscale).round_ties_even();
+        if new_w > MAX_RENDER_PX as f64 {
+            return Err(RenderError(format!(
+                "label is {new_w} px wide after stretching — too wide to render"
+            )));
+        }
+        let new_w = (new_w as i64).max(1) as u32;
         img = imageops::resize(&img, new_w, height_px, imageops::FilterType::Lanczos3);
     }
     Ok(threshold(&img))
@@ -412,13 +436,22 @@ pub fn render_code128(data: &str, height_px: u32, font_spec: Option<&str>) -> Re
     let module_px: u32 = 3;
     let pattern = code128::pattern(data)?;
     let quiet = 10 * module_px; // mandatory quiet zone, 10 modules per side
+                                // The strip is sized by the data length, so bound it before the
+                                // allocation, not after (a request-sized `code:` payload would
+                                // otherwise allocate gigabytes on its way to the width error).
+    let strip_w = pattern.len() as i64 * i64::from(module_px) + 2 * i64::from(quiet);
+    if strip_w > MAX_RENDER_PX {
+        return Err(RenderError(format!(
+            "barcode is {strip_w} px wide — too wide to render"
+        )));
+    }
     let caption_h = if height_px >= 45 {
         (height_px / 3).clamp(14, 26)
     } else {
         0
     };
     let bar_h = height_px - caption_h;
-    let mut img = white_image(pattern.len() as u32 * module_px + 2 * quiet, height_px);
+    let mut img = white_image(strip_w as u32, height_px);
     for (i, ch) in pattern.chars().enumerate() {
         if ch == '1' {
             let x = i64::from(quiet) + i as i64 * i64::from(module_px);
@@ -731,7 +764,7 @@ pub fn render_label(text: &str, height_px: u32, opts: &TextOptions) -> Result<Gr
     let out = if segments.len() == 1 {
         segments.pop().unwrap()
     } else {
-        hstack(&segments, height_px, 10)
+        hstack(&segments, height_px, 10)?
     };
     if opts.margin_px > 0 {
         let padded_w = i64::from(out.width()) + 2 * i64::from(opts.margin_px);
@@ -765,18 +798,90 @@ pub fn load_image(path: &str, height_px: u32) -> Result<GrayImage> {
     Ok(threshold(&gray))
 }
 
-/// render.hstack: parts side by side, vertically centered.
-pub fn hstack(parts: &[GrayImage], height_px: u32, gap_px: u32) -> GrayImage {
-    let width: u32 =
-        parts.iter().map(GrayImage::width).sum::<u32>() + gap_px * (parts.len() as u32 - 1);
-    let mut canvas = white_image(width, height_px);
+/// render.hstack: parts side by side, vertically centered. Errors
+/// (rather than allocating) when the joined strip would exceed
+/// MAX_RENDER_PX — every part is bounded on its own, but a label made
+/// of thousands of `qr:`/`code:` lines is not.
+pub fn hstack(parts: &[GrayImage], height_px: u32, gap_px: u32) -> Result<GrayImage> {
+    let width: i64 = parts.iter().map(|p| i64::from(p.width())).sum::<i64>()
+        + i64::from(gap_px) * (parts.len() as i64 - 1).max(0);
+    if width > MAX_RENDER_PX {
+        return Err(RenderError(format!(
+            "label is {width} px wide — too wide to render"
+        )));
+    }
+    let mut canvas = white_image(width.max(1) as u32, height_px);
     let mut x: i64 = 0;
     for part in parts {
         let y = (i64::from(height_px) - i64::from(part.height())).div_euclid(2);
         paste(&mut canvas, part, x, y);
         x += i64::from(part.width()) + i64::from(gap_px);
     }
-    canvas
+    Ok(canvas)
+}
+
+/// Is `spec` a file path rather than a font id, alias, or family name
+/// (the test resolve_font uses)?
+fn is_path_spec(spec: &str) -> bool {
+    spec.contains('/')
+        || spec.contains('\\')
+        || spec.ends_with(".ttf")
+        || spec.ends_with(".ttc")
+        || spec.ends_with(".otf")
+}
+
+/// Directories a path spec from an untrusted caller may point into:
+/// the font cache and the host font directories (the system fallbacks
+/// all live under the latter). Canonicalized once; directories that
+/// do not exist are simply absent.
+fn trusted_font_dirs() -> &'static [PathBuf] {
+    static DIRS: OnceLock<Vec<PathBuf>> = OnceLock::new();
+    DIRS.get_or_init(|| {
+        std::iter::once(fontcache::cache_dir())
+            .chain(hostfonts::font_dirs())
+            .filter_map(|d| d.canonicalize().ok())
+            .collect()
+    })
+}
+
+/// Vet a font spec that arrived over the network (the HTTP API's
+/// `font` field) before anything opens it. Ids, aliases, and family
+/// names pass through untouched; a file path is accepted only when it
+/// resolves inside the font cache or a host font directory — so the
+/// API can address any installed font, but cannot be used to open,
+/// hang on, or probe for arbitrary files (`/dev/zero`, a FIFO, a
+/// guessed home-directory path). The verdict for anything outside
+/// those directories is the same whether or not the file exists.
+pub fn validate_untrusted_font_spec(spec: &str) -> Result<()> {
+    if !is_path_spec(spec) {
+        return Ok(());
+    }
+    let (path, _) = font::path_and_index(spec)?;
+    let path = Path::new(path);
+    let outside = || {
+        RenderError(format!(
+            "font path {spec:?} is not inside a font directory; the HTTP API accepts \
+             manifest ids, aliases, installed family names, and paths under the \
+             font cache or the system font folders"
+        ))
+    };
+    // Resolve the directory (which must exist) and re-attach the file
+    // name, so the check needs nothing from the file itself.
+    let Some(file_name) = path.file_name() else {
+        return Err(outside());
+    };
+    let parent = match path.parent() {
+        Some(p) if !p.as_os_str().is_empty() => p.canonicalize().map_err(|_| outside())?,
+        _ => return Err(outside()),
+    };
+    let candidate = parent.join(file_name);
+    if !trusted_font_dirs()
+        .iter()
+        .any(|dir| candidate.starts_with(dir))
+    {
+        return Err(outside());
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -839,6 +944,67 @@ mod tests {
         // And width alone past the render bound is rejected too.
         let err = render_label("grid:99999999u/1\nA", 76, &opts).unwrap_err();
         assert!(err.0.contains("too wide"), "{err}");
+    }
+
+    /// Every input that sizes an allocation is refused BEFORE the
+    /// allocation: a request-sized barcode, a stack of many small
+    /// segments, an absurd stretch, an absurd fixed size.
+    #[test]
+    fn oversized_inputs_are_refused_before_allocating() {
+        let Some(system) = fontcache::system_fallback() else {
+            return;
+        };
+        let opts = TextOptions {
+            font: Some(system.to_owned()),
+            ..TextOptions::default()
+        };
+        let code = format!("code:{}", "A".repeat(20_000));
+        let err = render_label(&code, 76, &opts).unwrap_err();
+        assert!(
+            err.0.contains("barcode is") && err.0.contains("too wide"),
+            "{err}"
+        );
+        // 3000 one-character barcodes: each is small, the stack is not.
+        let many = "code:A\n".repeat(3_000);
+        let err = render_label(&many, 76, &opts).unwrap_err();
+        assert!(err.0.contains("too wide"), "{err}");
+        let stretched = TextOptions {
+            hscale: 1e6,
+            ..opts.clone()
+        };
+        let err = render_label("HELLO", 76, &stretched).unwrap_err();
+        assert!(err.0.contains("too wide"), "{err}");
+        for bad in [f64::INFINITY, f64::NAN, 0.0, -1.0] {
+            let opts = TextOptions {
+                hscale: bad,
+                ..opts.clone()
+            };
+            let err = render_label("HELLO", 76, &opts).unwrap_err();
+            assert!(err.0.contains("hscale"), "{bad}: {err}");
+        }
+        let huge = TextOptions {
+            size: Some(MAX_FONT_SIZE_PX + 1),
+            ..opts.clone()
+        };
+        let err = render_label("I", 76, &huge).unwrap_err();
+        assert!(err.0.contains("font size"), "{err}");
+    }
+
+    /// Paths from untrusted callers must resolve inside the font
+    /// directories; ids and family names are not paths at all.
+    #[test]
+    fn untrusted_font_paths_stay_inside_font_dirs() {
+        assert!(validate_untrusted_font_spec("inter").is_ok());
+        assert!(validate_untrusted_font_spec("Comic Sans MS").is_ok());
+        let err = validate_untrusted_font_spec("/etc/hosts").unwrap_err();
+        assert!(err.0.contains("not inside a font directory"), "{err}");
+        assert!(validate_untrusted_font_spec("/dev/zero").is_err());
+        assert!(validate_untrusted_font_spec("../../etc/passwd").is_err());
+        assert!(validate_untrusted_font_spec("/").is_err());
+        if let Some(system) = fontcache::system_fallback() {
+            assert!(validate_untrusted_font_spec(system).is_ok());
+            assert!(validate_untrusted_font_spec(&format!("{system}#0")).is_ok());
+        }
     }
 
     #[test]

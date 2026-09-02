@@ -261,16 +261,7 @@ impl FontCache {
         }
         let data = crate::transform::transform(entry, blob, &self.icon_cps)?;
         let target = cache_dir().join(self.cache_name(entry));
-        let parent = target.parent().expect("cache path has a parent");
-        std::fs::create_dir_all(parent)
-            .map_err(|e| FontUnavailable(format!("cannot create cache dir: {e}")))?;
-        // .part + rename, like fontcache.py: never leave a partial or
-        // unverified file at the final name.
-        let tmp = target.with_extension("part");
-        std::fs::write(&tmp, &data)
-            .map_err(|e| FontUnavailable(format!("cannot write cache file: {e}")))?;
-        std::fs::rename(&tmp, &target)
-            .map_err(|e| FontUnavailable(format!("cannot finalize cache file: {e}")))?;
+        write_atomically(&target, &data)?;
         Ok(target)
     }
 
@@ -290,13 +281,7 @@ impl FontCache {
                 return;
             }
         };
-        let write = || -> std::io::Result<()> {
-            std::fs::create_dir_all(lic_path.parent().unwrap())?;
-            let tmp = lic_path.with_extension("part");
-            std::fs::write(&tmp, &data)?;
-            std::fs::rename(&tmp, &lic_path)
-        };
-        if let Err(e) = write() {
+        if let Err(e) = write_atomically(&lic_path, &data) {
             eprintln!("warning: could not store license for {font_id}: {e}");
         }
     }
@@ -362,6 +347,36 @@ impl FontCache {
         }
         failed
     }
+}
+
+/// Write `data` to `target` via a temporary file and rename, like
+/// fontcache.py: never leave a partial or unverified file at the final
+/// name. The temporary name is unique per process AND per call, so
+/// two fetches of the same font — the CLI and the server, or two
+/// concurrent /fonts/ requests — cannot truncate each other's
+/// in-progress file; whichever renames last wins with a complete copy.
+fn write_atomically(target: &std::path::Path, data: &[u8]) -> Result<(), FontUnavailable> {
+    use std::sync::atomic::{AtomicU32, Ordering};
+    static SEQ: AtomicU32 = AtomicU32::new(0);
+    let parent = target.parent().expect("cache path has a parent");
+    std::fs::create_dir_all(parent)
+        .map_err(|e| FontUnavailable(format!("cannot create cache dir: {e}")))?;
+    let stem = target
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let tmp = parent.join(format!(
+        ".{stem}.part-{}-{}",
+        std::process::id(),
+        SEQ.fetch_add(1, Ordering::Relaxed)
+    ));
+    std::fs::write(&tmp, data)
+        .map_err(|e| FontUnavailable(format!("cannot write cache file: {e}")))?;
+    if let Err(e) = std::fs::rename(&tmp, target) {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(FontUnavailable(format!("cannot finalize cache file: {e}")));
+    }
+    Ok(())
 }
 
 /// Percent-encode like urllib.parse.quote's default: RFC 3986
