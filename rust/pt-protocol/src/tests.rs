@@ -14,6 +14,8 @@ use super::*;
 struct FakeTransport {
     written: Rc<RefCell<Vec<u8>>>,
     replies: Rc<RefCell<VecDeque<u8>>>,
+    // Largest read the fake delivers at once — a fragmenting link.
+    max_chunk: usize,
 }
 
 impl FakeTransport {
@@ -22,6 +24,7 @@ impl FakeTransport {
         let t = FakeTransport {
             written: written.clone(),
             replies: Rc::new(RefCell::new(replies.iter().copied().collect())),
+            max_chunk: usize::MAX,
         };
         (t, written)
     }
@@ -35,7 +38,7 @@ impl Transport for FakeTransport {
 
     fn read(&mut self, max: usize) -> Result<Vec<u8>> {
         let mut replies = self.replies.borrow_mut();
-        let n = max.min(replies.len());
+        let n = max.min(self.max_chunk).min(replies.len());
         Ok(replies.drain(..n).collect())
     }
 
@@ -169,6 +172,33 @@ fn cube_rejects_too_tall_images() {
     let (mut p, _) = cube_with_status(&status_reply(12, 0x01, 0, 0, 0));
     let err = p.print(&one_dot_label(3, 76), false, false).unwrap_err();
     assert!(err.0.contains("exceeds"), "{err}");
+}
+
+/// RFCOMM may hand a 32-byte block over in pieces. The reader must
+/// take only what is missing from the current block, so the head of
+/// the NEXT block (here "printing completed") is never swallowed and
+/// discarded along with the tail of the previous one.
+#[test]
+fn cube_fragmented_status_blocks_stay_aligned() {
+    let mut replies = status_reply(12, 0x01, 0, 0, 0).to_vec();
+    replies.extend(print_done());
+    let (mut t, _) = FakeTransport::new(&replies);
+    t.max_chunk = 20; // 32-byte blocks arrive as 20 + 12
+    let mut p = Printer::new(Box::new(t), &PTP300BT, "test");
+    p.status().unwrap();
+    p.print(&one_dot_label(3, 64), false, false).unwrap();
+}
+
+/// A block that does not carry the status header cannot be a status
+/// reply; decoding its bytes as one would invent errors or a false
+/// "printing completed".
+#[test]
+fn cube_garbage_while_waiting_is_an_error() {
+    let mut replies = status_reply(12, 0x01, 0, 0, 0).to_vec();
+    replies.extend([0u8; 32]);
+    let (mut p, _) = cube_with_status(&replies);
+    let err = p.print(&one_dot_label(3, 64), false, false).unwrap_err();
+    assert!(err.0.contains("unexpected status reply"), "{err}");
 }
 
 #[test]

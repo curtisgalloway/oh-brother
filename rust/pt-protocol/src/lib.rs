@@ -245,11 +245,17 @@ impl Printer {
         self.spec.name
     }
 
+    /// One 32-byte status block, assembled from however the transport
+    /// delivers it. Each read asks only for what is still missing, so
+    /// a block that arrives fragmented (RFCOMM can split it) never
+    /// pulls in and discards the head of the block behind it — which
+    /// would leave wait_print_done decoding from the middle of a
+    /// reply.
     fn read_status_reply(&mut self, timeout: Duration) -> Result<[u8; 32]> {
         let deadline = Instant::now() + timeout;
-        let mut buf = Vec::new();
+        let mut buf = Vec::with_capacity(32);
         while Instant::now() < deadline {
-            buf.extend(self.transport.read(32)?);
+            buf.extend(self.transport.read(32 - buf.len())?);
             if buf.len() >= 32 {
                 return Ok(buf[..32].try_into().unwrap());
             }
@@ -414,6 +420,12 @@ impl Printer {
             let buf = self.read_status_reply(remaining).map_err(|_| {
                 Error("the printer went silent instead of confirming the print".into())
             })?;
+            if buf[0] != 0x80 || buf[1] != 0x20 {
+                return Err(Error(format!(
+                    "unexpected status reply while waiting for the print: {:02x?}",
+                    buf
+                )));
+            }
             let errors = decode_errors(buf[8], buf[9]);
             if !errors.is_empty() {
                 return Err(Error(format!("printer reports: {}", errors.join(", "))));
