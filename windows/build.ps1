@@ -85,6 +85,26 @@ function Build-Msi {
     return $Msi
 }
 
+function Assert-MicrosoftSigned([string]$Path) {
+    # The bootstrapper is fetched fresh (no pinned hash, see below), so
+    # its Authenticode signature is the only thing standing between a
+    # hijacked download and a Microsoft-branded binary sealed inside a
+    # bundle that then gets signed with this project's certificate.
+    # Signer subject checked 2026-09-01 by parsing the download's PE
+    # security directory: CN=Microsoft Corporation, O=Microsoft
+    # Corporation, L=Redmond, S=Washington, C=US. The same check runs
+    # inline in .github/workflows/release-windows.yml.
+    $sig = Get-AuthenticodeSignature $Path
+    if ($sig.Status -ne 'Valid') {
+        throw "$Path is not validly signed (status: $($sig.Status))"
+    }
+    $subject = $sig.SignerCertificate.Subject
+    if ($subject -notmatch '(^|, )CN=Microsoft Corporation(,|$)') {
+        throw "$Path is signed by '$subject', not by Microsoft Corporation"
+    }
+    Write-Host "verified Microsoft signature on $Path"
+}
+
 function Build-Bundle([string]$Msi) {
     Assert-Wix
     # The Evergreen Bootstrapper is a small stub whose contents change
@@ -94,6 +114,7 @@ function Build-Bundle([string]$Msi) {
     if (-not (Test-Path $WV2)) {
         Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile $WV2
     }
+    Assert-MicrosoftSigned (Resolve-Path $WV2).Path
     $Bundle = "build\OhBrother-$Version-x64-setup.exe"
     & wix build -arch x64 `
         -ext WixToolset.Util.wixext/7.0.0 -ext WixToolset.BootstrapperApplications.wixext/7.0.0 `
