@@ -150,9 +150,24 @@ its first real-Windows build (`windows/TESTING.md`).
   static/ UI at compile time (single shippable binary), printer jobs
   on the main thread via a channel (macOS Bluetooth constraint).
   `/api/render` + `/api/print` render via label-render; `/api/meta`
-  includes the host-font scan; `/fonts/<id>.ttf` fetches on demand
-  (503 only when the network is down and the font is uncached);
-  `--export-static DIR` writes the standalone WebUSB deploy.
+  includes the host-font scan (family + scripts, never paths);
+  `/fonts/<id>.ttf` fetches on demand (503 only when the network is
+  down and the font is uncached); `--export-static DIR` writes the
+  standalone WebUSB deploy. The server is loopback-only but a browser
+  will carry any site's requests to it, so `same_origin_guard`
+  refuses requests whose `Host` is not this server (DNS rebinding),
+  whose `Origin` is another site (cross-site simple POSTs need no
+  preflight), or whose `Sec-Fetch-Site` is `cross-site` (`<img>`
+  GETs) — curl, the CLI, and the desktop shells send none of those
+  and are unaffected; keep `parse_json` Content-Type-agnostic, the
+  guard is what makes that safe. Request fields that size work are
+  bounded (`copies` ≤ 50, `hscale` 0.1–10, and every canvas against
+  `MAX_RENDER_PX`), and a `font` path from a request must resolve
+  inside the font cache or a host font directory
+  (`validate_untrusted_font_spec`; the CLI keeps accepting any file).
+  Printer jobs run under `catch_unwind` in `run_jobs`: a panic in a
+  job is that request's 503, never a dead server — the job thread is
+  the process main thread.
 - `cargo fmt` + `cargo clippy --all-targets` before committing; run
   from `rust/`.
 
@@ -168,13 +183,17 @@ parity harness live in git history):
   was verified identical against Pillow for every cached font at
   every probeable size before the Python side was removed.
 - Absurd inputs fail politely instead of mirroring CPython's memory
-  behavior: labels/grids wider than `MAX_RENDER_PX`, huge grid cell
-  counts, and out-of-range `size`/`margin`/`tape_px`/`copies` values
-  return a 400/error (Python variously MemoryErrors into a 500,
-  renders a cropped label for negative margins, or 500s on uncaught
-  int() failures). Same intent, safer failure mode — Rust's allocator
-  aborts the process where CPython raises, so the bound is
-  load-bearing, and error TEXTS for bad values differ from CPython's.
+  behavior: labels/grids/barcodes/stretched text wider than
+  `MAX_RENDER_PX`, huge grid cell counts, fixed sizes above
+  `MAX_FONT_SIZE_PX`, and out-of-range
+  `size`/`margin`/`tape_px`/`copies`/`hscale` values return a
+  400/error (Python variously MemoryErrors into a 500, renders a
+  cropped label for negative margins, or 500s on uncaught int()
+  failures). Same intent, safer failure mode — Rust's allocator
+  aborts the process where CPython raises, so every such bound is
+  checked BEFORE the allocation it guards, and error TEXTS for bad
+  values differ from CPython's. Font files must be regular files
+  (Python would read `/dev/zero` until it died).
 - A `#` face-index suffix that isn't a number errors on both sides,
   but with different messages and timing (Rust at spec parse, Python
   from int() wherever the spec is first touched).
