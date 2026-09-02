@@ -54,7 +54,15 @@ pub struct BtTransport {
 impl BtTransport {
     /// Dial the paired Cube called `name`, or the first one.
     pub fn open(name: Option<&str>) -> Result<BtTransport> {
-        let cname = name.map(|s| CString::new(s).expect("printer name with NUL"));
+        // The name can come straight from an HTTP request; a NUL in it
+        // is a bad printer id, not a reason to unwind the main thread
+        // (which is the printer thread, and the whole server with it).
+        let cname = name
+            .map(|s| {
+                CString::new(s)
+                    .map_err(|_| Error(format!("no paired Bluetooth printer called {s:?}")))
+            })
+            .transpose()?;
         let mut err = vec![0u8; 512];
         let handle = unsafe {
             ptbt_open(
