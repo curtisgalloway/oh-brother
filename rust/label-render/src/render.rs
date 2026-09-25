@@ -837,7 +837,8 @@ fn is_path_spec(spec: &str) -> bool {
 fn trusted_font_dirs() -> &'static [PathBuf] {
     static DIRS: OnceLock<Vec<PathBuf>> = OnceLock::new();
     DIRS.get_or_init(|| {
-        std::iter::once(fontcache::cache_dir())
+        fontcache::cache_dir()
+            .into_iter()
             .chain(hostfonts::font_dirs())
             .filter_map(|d| d.canonicalize().ok())
             .collect()

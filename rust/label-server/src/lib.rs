@@ -235,9 +235,18 @@ async fn font_file(Path(file): Path<String>) -> Response {
     }
     // Fetch on demand (60 s worst case) — off the async workers.
     let id = id.to_owned();
-    let ensured = tokio::task::spawn_blocking(move || fontcache::global().ensure(&id))
-        .await
-        .expect("font fetch task");
+    let ensured = match tokio::task::spawn_blocking(move || fontcache::global().ensure(&id)).await {
+        Ok(ensured) => ensured,
+        // A panicking fetch answers like a failed one instead of
+        // dropping the connection with no response at all.
+        Err(e) => {
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(json!({"error": format!("font fetch failed: {e}")})),
+            )
+                .into_response();
+        }
+    };
     match ensured {
         Ok(path) => match std::fs::read(&path) {
             Ok(bytes) => ([(header::CONTENT_TYPE, "font/ttf")], bytes).into_response(),

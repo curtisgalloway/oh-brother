@@ -173,7 +173,7 @@ impl FontCache {
     /// file exists) — fontcache._cache_name resolved against cache_dir.
     pub fn cache_path(&self, id: &str) -> Option<PathBuf> {
         let font = self.font_by_id(id)?;
-        Some(cache_dir().join(self.cache_name(font)))
+        Some(cache_dir()?.join(self.cache_name(font)))
     }
 
     /// Cached path for a manifest font id, or None. Never networks.
@@ -260,7 +260,7 @@ impl FontCache {
             )));
         }
         let data = crate::transform::transform(entry, blob, &self.icon_cps)?;
-        let target = cache_dir().join(self.cache_name(entry));
+        let target = require_cache_dir()?.join(self.cache_name(entry));
         write_atomically(&target, &data)?;
         Ok(target)
     }
@@ -269,7 +269,11 @@ impl FontCache {
     /// (fontcache._ensure_license): warns on stderr, never fails.
     fn ensure_license(&self, entry: &Value) {
         let font_id = entry["id"].as_str().unwrap_or_default();
-        let lic_path = cache_dir().join("licenses").join(format!("{font_id}.txt"));
+        let Some(dir) = cache_dir() else {
+            eprintln!("warning: no font cache directory; license for {font_id} not stored");
+            return;
+        };
+        let lic_path = dir.join("licenses").join(format!("{font_id}.txt"));
         if lic_path.exists() {
             return;
         }
@@ -293,7 +297,7 @@ impl FontCache {
         let Some(entry) = self.font_by_id(font_id) else {
             return Err(FontUnavailable(format!("unknown font id {font_id:?}")));
         };
-        let target = cache_dir().join(self.cache_name(entry));
+        let target = require_cache_dir()?.join(self.cache_name(entry));
         if target.exists() {
             return Ok(target);
         }
@@ -310,7 +314,9 @@ impl FontCache {
         let Some(entry) = self.font_by_id(font_id) else {
             return Err(FontUnavailable(format!("unknown font id {font_id:?}")));
         };
-        let path = cache_dir().join("licenses").join(format!("{font_id}.txt"));
+        let path = require_cache_dir()?
+            .join("licenses")
+            .join(format!("{font_id}.txt"));
         if !path.exists() {
             self.ensure_license(entry);
         }
@@ -406,7 +412,16 @@ fn archive_bytes(
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
     static ARCHIVES: OnceLock<Mutex<HashMap<String, Arc<Vec<u8>>>>> = OnceLock::new();
+    // Held across the download so concurrent first requests (the web
+    // UI asks for several faces at once) wait for one fetch instead of
+    // each pulling the archive. The memo lock is not held that long,
+    // so already-cached lookups never queue behind a download.
+    static FETCHING: Mutex<()> = Mutex::new(());
     let memo = ARCHIVES.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Some(bytes) = memo.lock().unwrap().get(url) {
+        return Ok(bytes.clone());
+    }
+    let _fetching = FETCHING.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(bytes) = memo.lock().unwrap().get(url) {
         return Ok(bytes.clone());
     }
@@ -461,19 +476,32 @@ fn download(url: &str) -> Result<Vec<u8>, FontUnavailable> {
     Ok(data)
 }
 
-pub fn cache_dir() -> PathBuf {
+/// The font cache directory, or None when the platform reports no
+/// user data directory (no HOME and no passwd entry, say). None rather
+/// than a panic or a shared fallback like the temp dir: the cache is
+/// also a trusted font root for untrusted path specs, so it must never
+/// be a directory other users can write.
+pub fn cache_dir() -> Option<PathBuf> {
     if let Ok(dir) = std::env::var("OH_BROTHER_FONT_CACHE") {
-        return PathBuf::from(dir);
+        return Some(PathBuf::from(dir));
     }
     // Matches platformdirs.user_data_path("oh-brother") on every
     // platform, so Python and Rust share one cache: macOS Application
     // Support and Linux ~/.local/share get one "oh-brother" segment;
     // Windows gets AppData\Local\oh-brother\oh-brother because
     // platformdirs defaults appauthor to the appname and appends both.
-    let base = dirs::data_local_dir().expect("user data dir");
+    let base = dirs::data_local_dir()?;
     #[cfg(target_os = "windows")]
     let base = base.join("oh-brother");
-    base.join("oh-brother").join("fonts")
+    Some(base.join("oh-brother").join("fonts"))
+}
+
+fn require_cache_dir() -> Result<PathBuf, FontUnavailable> {
+    cache_dir().ok_or_else(|| {
+        FontUnavailable(
+            "no user data directory for the font cache; set OH_BROTHER_FONT_CACHE".into(),
+        )
+    })
 }
 
 // Last-resort fonts when offline with an empty cache: never fail a
