@@ -1,3 +1,7 @@
 build/
 dist/
 rust/target/
+
+# oxbox review audit trail (keep, but out of history)
+logs/
+.oxbox-review/
