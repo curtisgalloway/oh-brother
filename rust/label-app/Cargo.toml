@@ -15,7 +15,7 @@ path = "src/main.rs"
 [dependencies]
 tao = "0.37"
 wry = "0.57"
-muda = "0.20"
+muda = "0.21"
 rfd = "0.17"
 ureq = "3"
 
