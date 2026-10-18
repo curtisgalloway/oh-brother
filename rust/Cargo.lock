@@ -978,9 +978,9 @@ checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
 
 [[package]]
 name = "font-types"
-version = "0.12.5"
+version = "0.12.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8eb065f3251655b3c90e22e5e363f310fc5332fb3402e37bbc94752283248f6"
+checksum = "835ae9d781464a79026cde387f9cbc650c9a4909d7cf7e658b127e3c35d2f35d"
 dependencies = [
  "bytemuck",
 ]
@@ -1870,7 +1870,7 @@ dependencies = [
  "skera",
  "ttf-parser",
  "ureq",
- "write-fonts",
+ "write-fonts 0.54.1",
  "zip",
 ]
 
@@ -2967,6 +2967,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "read-fonts"
+version = "0.45.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4edc8db0d972de88e53a085b1f01fb3fbdae7bb0cb7a0ce2b2f8285a412fe3ef"
+dependencies = [
+ "bytemuck",
+ "foldhash",
+ "font-types",
+ "once_cell",
+ "yoke",
+]
+
+[[package]]
 name = "reborrow"
 version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3337,7 +3350,7 @@ dependencies = [
  "hashbrown",
  "skrifa",
  "thiserror 2.0.20",
- "write-fonts",
+ "write-fonts 0.53.0",
 ]
 
 [[package]]
@@ -3347,7 +3360,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "526e654b303ff4ad73a5a40b25de2b3ce3d039c5e3b6da5f89ae6e57004cb40f"
 dependencies = [
  "bytemuck",
- "read-fonts",
+ "read-fonts 0.44.0",
 ]
 
 [[package]]
@@ -4589,10 +4602,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4c2feba63177f6f6b51d646b78fafd5ff65f0581814155eb36ef620133d245c4"
 dependencies = [
  "font-types",
+ "log",
+ "read-fonts 0.44.0",
+]
+
+[[package]]
+name = "write-fonts"
+version = "0.54.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "55716cfa7e8bcdb90289e07dfac478ccb2e3ec0f9a604fe682c7a03a7984d705"
+dependencies = [
+ "font-types",
  "indexmap",
  "kurbo",
  "log",
- "read-fonts",
+ "read-fonts 0.45.1",
 ]
 
 [[package]]
