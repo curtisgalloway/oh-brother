@@ -1872,7 +1872,7 @@ dependencies = [
  "skera",
  "ttf-parser",
  "ureq",
- "write-fonts 0.55.0",
+ "write-fonts",
  "zip",
 ]
 
@@ -2951,20 +2951,6 @@ dependencies = [
 
 [[package]]
 name = "read-fonts"
-version = "0.46.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bdaa4fffe9ff3ca2c353fa9729792805b9b3e324695ff5a081f860612e81b330"
-dependencies = [
- "bytemuck",
- "foldhash",
- "font-types",
- "once_cell",
- "smallvec",
- "yoke",
-]
-
-[[package]]
-name = "read-fonts"
 version = "0.47.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a39d2f8f681030a7bcbbcf3e8568775ac2393afd51401a2e2133ee89e3953897"
@@ -3347,10 +3333,10 @@ checksum = "02fa4a4dc04b2d2326e4cfdcf890234a58419d00953e512fbf2823d33965d26b"
 dependencies = [
  "foldhash",
  "hashbrown",
- "read-fonts 0.47.0",
+ "read-fonts",
  "skrifa",
  "thiserror 2.0.20",
- "write-fonts 0.56.0",
+ "write-fonts",
 ]
 
 [[package]]
@@ -3361,7 +3347,7 @@ checksum = "e85ba678a6023a063d0a78c8770f1c166674ef46af13523d05eff67430f79dfe"
 dependencies = [
  "bytemuck",
  "once_cell",
- "read-fonts 0.47.0",
+ "read-fonts",
  "smallvec",
  "yoke",
 ]
@@ -4599,26 +4585,15 @@ checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
 
 [[package]]
 name = "write-fonts"
-version = "0.55.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e91ad74b39f48f456560ed1ccc75959efa19bf6f0817d1560751bb49db84f6c"
-dependencies = [
- "font-types",
- "indexmap",
- "kurbo",
- "log",
- "read-fonts 0.46.0",
-]
-
-[[package]]
-name = "write-fonts"
 version = "0.56.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "944049531d52f9002812ea9de23ec8aa4e9577a7bee6869a1d0f297c679817ea"
 dependencies = [
  "font-types",
+ "indexmap",
+ "kurbo",
  "log",
- "read-fonts 0.47.0",
+ "read-fonts",
 ]
 
 [[package]]
